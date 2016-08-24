@@ -1,0 +1,65 @@
+.nvgtt-block {
+	cursor: pointer;
+	filter: url(#md-shadow1);
+	outline:0;
+	opacity: 0.95;
+}
+
+.nvgtt-block:hover {
+	filter: url(#md-shadow3);
+}
+
+
+.nvgtt-block-path {
+
+}
+
+.nvgtt-block-path-selected {
+	stroke: #77f;
+	stroke-width: 4;	
+}
+
+.nvgtt-block-text {
+
+	font-family: Calibri;
+	font-size: 20px;
+
+	-webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.nvgtt-block-input, .nvgtt-block-output {
+	fill: #aaa;
+	fill: #fff;
+	fill: #444;
+	fill: #fff;
+	stroke: #fff;
+	stroke-width: 0;
+	cursor: crosshair;	
+} 
+
+.nvgtt-block-input:hover, .nvgtt-block-output:hover {
+	stroke: #ff0;
+	stroke-width: 3;
+}
+
+
+.nvgtt-link {
+	cursor: pointer;
+	outline:0;
+}
+
+.nvgtt-link-path {
+	stroke: #37474F;
+	stroke-width: 4;
+	fill: none;
+}
+
+.nvgtt-link-path-selected {
+	stroke: #77f;
+	stroke-width: 4;
+}

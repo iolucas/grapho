@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <link href='https://fonts.googleapis.com/css?family=Muli|Josefin+Sans|Maven+Pro|Righteous|Fredoka+One' rel='stylesheet' type='text/css'>
+        
+
+        <link rel="stylesheet" href="assets/css/box-container.css"/>
+        <link rel="stylesheet" href="app/chart/style.css"/>
+
+        <!--    Begin Angular Modules -->
+
+
+
+        <title>Navigatte</title> 
+        <style>
+            html, body {
+                height: 100%;
+                color: rgba(0, 0, 0, 0.87);
+                background: white;
+                position: relative; 
+            }
+
+            body {
+                margin: 0;
+                padding: 0; 
+                /*padding-top: 70px;*/
+                word-wrap: break-word;  
+            }
+
+            .full-height {
+                height: 100%;
+            }
+
+            .fixed {
+                position: fixed;
+            }
+
+        </style>
+	</head>
+
+	<body>
+
+        <div id="nvgtt-content-area" class="full-height">
+
+            <div id="nvgtt-content-display" class="full-height" flex>
+                <svg class="svg-container" width="100%" height="100%">
+                    <defs>
+                        <linearGradient id="linGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#666;stop-opacity:.0" />
+                            <stop offset="100%" style="stop-color:#bbb;stop-opacity:.5" />
+                        </linearGradient>
+
+                        <radialGradient id="radGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                            <stop offset="0%" style="stop-color:rgb(255,255,255);stop-opacity:0" />
+                            <stop offset="100%" style="stop-color:rgb(0,0,255);stop-opacity:1" />
+                        </radialGradient>
+
+                        <!-- Material Design Shadows -->
+
+                        <filter id="md-shadow1" height="150%">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="1"/> <!-- stdDeviation is how much to blur -->
+                            <feOffset dx="0" dy="1" result="offsetblur"/> <!-- how much to offset -->
+                            <feComponentTransfer>   
+                                <feFuncA type="linear" slope=".4"/>
+                            </feComponentTransfer>
+                            <feMerge> 
+                                <feMergeNode/> <!-- this contains the offset blurred image -->
+                                <feMergeNode in="SourceGraphic"/> <!-- this contains the element that the filter is applied to -->
+                            </feMerge>
+                        </filter>
+
+                        <filter id="md-shadow2" height="150%">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="2"/> <!-- stdDeviation is how much to blur -->
+                            <feOffset dx="0" dy="2" result="offsetblur"/> <!-- how much to offset -->
+                            <feComponentTransfer>   
+                                <feFuncA type="linear" slope=".4"/>
+                            </feComponentTransfer>
+                            <feMerge> 
+                                <feMergeNode/> <!-- this contains the offset blurred image -->
+                                <feMergeNode in="SourceGraphic"/> <!-- this contains the element that the filter is applied to -->
+                            </feMerge>
+                        </filter>
+
+                        <filter id="md-shadow3" height="200%">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="2"/> <!-- stdDeviation is how much to blur -->
+                            <feOffset dx="0" dy="4" result="offsetblur"/> <!-- how much to offset -->
+                            <feComponentTransfer>   
+                                <feFuncA type="linear" slope=".4"/>
+                            </feComponentTransfer>
+                            <feMerge> 
+                                <feMergeNode/> <!-- this contains the offset blurred image -->
+                                <feMergeNode in="SourceGraphic"/> <!-- this contains the element that the filter is applied to -->
+                            </feMerge>
+                        </filter>
+
+
+
+                    </defs>
+
+                    <rect id="node-container-mouse-area" width="100%" height="100%"></rect>
+                    <g id="block-container" nvgtt-block-container></g>
+                </svg>
+            </div>
+        </div>
+
+
+        <script src="assets/js/jquery-2.1.4.min.js"></script>
+        <script src="assets/js/d3.v3.min.js"></script>
+ 
+        
+        <script src="assets/js/eventhandler.js"></script>
+        <script src="assets/js/hexbin.js"></script>
+        <script src="assets/js/g-query.js"></script>
+        <script src="assets/js/grow-modal.js"></script>
+        <!--<script src="modules/content-show/controller.js"></script>-->
+
+        <script src="app/chart/nvgtt.js"></script>
+        <script src="app/chart/nvgtt-container.js"></script>
+        <script src="app/chart/nvgtt-blocks.js"></script>
+        <script src="app/chart/nvgtt-links.js"></script>
+        <script src="app/chart/nvgtt-select.js"></script>
+        <script src="app/chart/nvgtt-content.js"></script>
+        <script src="app/chart/nvgtt-project.js"></script>
+        
+
+
+        <script src="app/chart/nvgtt-create.js"></script>
+        <script src="app/chart/nvgtt-search.js"></script>
+        <script src="app/chart/nvgtt-changes.js"></script>
+        <script src="app/chart/nvgtt-changes-node.js"></script>
+        <script src="app/chart/nvgtt-create-modal.js"></script>
+
+        <script src="app/chart/nvgtt-create-links.js"></script>
+        <script src="app/chart/nvgtt-changes-link.js"></script>
+        <script src="app/chart/nvgtt-keyactions.js"></script>
+ 
+        <script>
+            'use strict';
+
+            var pageName = '';   
+
+            NvgttChart.load(pageName);
+
+
+            function getUrlVars()
+            {
+                var vars = [], hash;
+                var hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+                for(var i = 0; i < hashes.length; i++)
+                {
+                    hash = hashes[i].split('=');
+                    vars.push(hash[0]);
+                    vars[hash[0]] = hash[1];
+                }
+                return vars;
+            }
+
+
+        </script>
+	</body>
+</html>
