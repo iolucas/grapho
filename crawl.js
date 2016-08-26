@@ -74,8 +74,21 @@ return;*/
     //addRedirectUrl
     //addLinkFromHere
 
+    if(page == '--all-target') {
+
+        page = process.argv[3];
+        lang = process.argv[4] || "en";
+
+        crawlLinksOfTargetPage(page, lang, function(err) {
+            if(err)
+                print(err)
+
+            print("Done all links on the target");
+        });
+    }
+
     //If this is true, we must crawl all the links with empty articles
-    if(page == '--all-empty') {
+    else if(page == '--all-empty') {
         var totalLinks, doneLinks, currentLink;
         print("Crawling every wikilink without article...")
         Wikiurl.findAll({where:{articleId:null}}).then(function(results){
@@ -154,6 +167,102 @@ return;*/
     }
 
 });
+
+
+function crawlLinksOfTargetPage(page, lang, callback) {
+    var totalLinks, doneLinks, currentLink;
+
+    //Get wikiurl ref
+    Wikiurl.findOne({where:{url: page, lang: lang}})
+        .then(function(wikiurlRef){
+            //get article ref
+            return Article.findOne({where:{id: wikiurlRef.articleId}});
+        })
+        .then(function(artRef){
+            //get article ref
+            return artRef.getLinkFromHere();
+        })
+        
+        /*.then(function(links) {
+            console.log(links)
+            if(!links) {
+                print("No links were return.")
+                return;
+            }
+
+            //Put all the links articleIds into an array
+            var linksArticleIds = [];
+            links.forEach(function(link) {
+                linksArticleIds.push(link.articleId);        
+            }, this);
+
+            print("Crawling every target page link...");
+            
+            return Wikiurl.findAll({ where: { id: linksArticleIds }});
+        })*/
+    
+        .then(function(results){
+            
+            /*result.forEach(function(link) {
+                print(link.url);
+            }, this);*/
+
+            totalLinks = results.length;
+            currentLink = 0;
+            doneLinks = 0;
+
+
+            //Create a queue object
+            var queue = async.queue(function(wikiLink, taskCallback) {
+                currentLink++;
+                print("Crawling link " + currentLink + " of " + totalLinks + "...");
+                crawlUnique(wikiLink.url, wikiLink.lang, currentLink, function(err, crawlNumber) {
+                    doneLinks++;
+
+                    if(err) {
+                        print(err);
+                        writeErrorLog(err);
+                    } else {
+                        print("Done with crawl number " + crawlNumber);
+                    }
+
+                    var leftLinks = totalLinks - doneLinks;
+
+                    print(leftLinks + " links left.");    
+
+                    //In case a crawl fails here just print error, keep with the queue (call taskcallback with no errors)
+                    taskCallback(err);
+                });
+
+            }, 100);
+
+            queue.drain = function(err) {
+                if(err) {
+                    print("ERROR while adding crawling:");
+                    print(err);
+                } else {
+                    print("Crawl empty article wikiUrls finished successfully."); //Fire the callback with success
+                } 
+                saveErrorLog();
+                callback();                   
+            }
+
+            queue.push(results, function(err) {
+
+                if(err) {
+                    print("ERROR while adding crawling:");
+                    writeErrorLog(err);
+                    print(err);
+                    return;
+                }
+                
+                //print("Link done.");
+            });        
+
+        }).catch(function(error){
+            print(error);
+        });     
+}
 
 //Crawl an unique page, register it if not regitered and register its abstract links
 function crawlUnique(page, lang, crawlNumber, callback) {

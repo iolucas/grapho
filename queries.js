@@ -70,12 +70,16 @@ function getArticleDataByUrl(url, lang, deepLevel, callback) {
     });
 }
 
+//Labels for the data
+var artTitle = "name";
+var artLinks = "children";
+
 //Recursive function to populate a resultObject with articles and its links
 function getArticleLinksRecursive(article, resultObject, deepLevel, callback) {
 
     deepLevel = deepLevel || 1;
 
-    resultObject.title = article.title;
+    resultObject[artTitle] = article.title;
     resultObject.id = article.id;
 
     //Get links from the article
@@ -106,16 +110,17 @@ function getArticleLinksRecursive(article, resultObject, deepLevel, callback) {
                 return;
             }
 
-            resultObject.links = [];
+            resultObject[artLinks] = [];
 
             deepLevel--; //Subtract one deep level
             if(deepLevel <= 0) { //If it is less or equal to zero, means recursion has ended,
                 //Add article data to the result object
                 articles.forEach(function(art) {
-                    resultObject.links.push({
-                        title: art.title,
-                        id: art.id
-                    });     
+                    var newObject = {}
+                    newObject[artTitle] = art.title;
+                    newObject.id = art.id;
+                    resultObject[artLinks].push(newObject);  
+
                 }, this);
                 callback(); //Fire callback successfully
 
@@ -128,10 +133,10 @@ function getArticleLinksRecursive(article, resultObject, deepLevel, callback) {
                 //Create async queue
                 var asyncQueue = async.queue(function(art, taskCallback) {
                     //Create a object for the article async id
-                    resultObject.links[art.asyncId] = {}
+                    resultObject[artLinks][art.asyncId] = {}
                    
                     //call this function recursive
-                    getArticleLinksRecursive(art, resultObject.links[art.asyncId], deepLevel, function(err) {
+                    getArticleLinksRecursive(art, resultObject[artLinks][art.asyncId], deepLevel, function(err) {
                         if(err) //If some error, print it
                             print(err);
 

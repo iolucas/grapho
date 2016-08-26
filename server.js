@@ -44,7 +44,15 @@ app.get("/get_art", function(req, res) {
     //Ensure the url is properle encoded
     url = encodeURIComponent(url);
 
+    //Check bug of tree view, 
+    //Modify to deal with feedback
+    //implement mode to draw a back line
+
+
     queries.getArticleDataByUrl(url, lang, deep, function(error, articleData) {
+        if(error)
+            return res.jsonError(error);
+
         res.json(articleData);
     });
 
