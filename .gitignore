@@ -49,5 +49,6 @@ Temporary Items
 /node_modules
 /public/assets
 /database
+/logs
 *.lnk
 *.url

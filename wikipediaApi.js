@@ -9,6 +9,16 @@ var wikipediaApiUrl = ".wikipedia.org/w/api.php";
 //https://en.wikipedia.org/w/api.php?action=query&redirects&pllimit=500&format=jsonfm&prop=links&titles=TCP/IP
 //https://en.wikipedia.org/w/api.php?action=parse&redirects&section=0&prop=text&format=jsonfm&page=c_sharp
 
+
+//Get page reference in other languages
+//https://en.wikipedia.org/w/api.php?action=parse&redirects&section=0&prop=langlinks&format=jsonfm&page=MQTT
+
+//Get page categories (more pages may be passed using |)
+//https://en.wikipedia.org/w/api.php?action=query&titles=MQTT&prop=categories
+
+//True search page
+//https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=Java&utf8=&srprop=titlesnippet|size|wordcount|timestamp|snippet|redirecttitle|redirectsnippet|sectiontitle|sectionsnippet&srlimit=500&srinterwiki
+
 module.exports = {
 
     getPageNonReverseAbstractLinks: null,
@@ -72,15 +82,24 @@ function getAbstractLinks(page, lang, callback) {
                 
             var link = $(this).attr('href');
 
+            //var notAllowedChars
+
             //Check the link exists and is a wiki link
-            if(link && link.indexOf("/wiki/") == 0) { //Get only wikipedia links
-                var lastPathIndex = link.lastIndexOf("/") + 1;
-                linkName = link.substring(lastPathIndex);
+            //Get only wikipedia links
+            //Remove pages that contains a colon (":"). Their offen are special pages. Not sure if there is articles with colon
+            if(link 
+                && link.indexOf("/wiki/") == 0 
+                && link.indexOf(":") == -1
+            ) { 
+                //We MUST NOT use last index of / to get the path cause some titles like TCP/IP, have bar in the title
+                //var lastPathIndex = link.lastIndexOf("/") + 1;
+                //We should use the '/wiki/' string length
+                var linkName = link.substring(6);
 
                 //If the link is not in the links array, push it 
                 if(links.indexOf(linkName) == -1)
                     links.push(linkName);
-            }                 
+            }                
         });
 
         //Return success with the page abstract links

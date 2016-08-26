@@ -18,17 +18,18 @@ function GraphoDB() {
 
             //Dont know yet what is this
             pool: {
-                max: 5,
+                max: 100,
                 min: 0,
                 idle: 10000
             },
 
             //MySQL only
-            //host: 'localhost', 
+            host: 'localhost',
+            dialect: 'mysql' //database to use 
 
             // SQLite only
-            storage: 'database/database.sqlite',
-            dialect: 'sqlite', //database to use
+            //storage: 'database/database.sqlite',
+            //dialect: 'sqlite' //database to use
         });
 
         //Define models
@@ -103,10 +104,10 @@ function GraphoDB() {
         var ArticleLink = sequelize.define('articleLink', {
             
             //Where the link was found (abstract, body etc)
-            place: {
+            /*place: {
                 type:Sequelize.STRING,
                 allowNull: false
-            },
+            },*/
             
             //Flag setting whether this link were cutted from the final forward model
             cutted: {
@@ -133,13 +134,14 @@ function GraphoDB() {
         //This is need since a lot of wikipedia urls are redirected to same article 
         //(Ex.: Tibia_(computer_game) to Tibia_(video_game), TCP/IP to Internet protocol suite, etc)
         Article.hasMany(Wikiurl, {as: "RedirectUrl"});
+        //Wikiurl.belongsTo(Article, {as: "RedirectUrl"}); //ANother options
+        //Article.belongsTo(Article, {as: "RedirectUrl"});
+
 
         //Relations to store the links from one page and links to one page
         Article.belongsToMany(Wikiurl, { through: ArticleLink, as: "LinkFromHere", foreignKey: 'fromArticle', otherKey: 'toWikiurl' });
         Wikiurl.belongsToMany(Article, { through: ArticleLink, as: "ArticleToHere", foreignKey: 'toWikiurl', otherKey: 'fromArticle'});
         
-
-
 
         //Define the bi directional link relation         
         //Article.belongsToMany(Article, {as: "LinkFromHere", through: ArticleLink, foreignKey: 'from', otherKey: 'to'});
@@ -153,20 +155,18 @@ function GraphoDB() {
             ArticleLink: ArticleLink
         }
 
-                /*
-        analize fields of article models
-        start crawling pages urls, titles, etc and only later craw links 
-        check better way to solve case of page links redirect*/
+
 
         //Sync models
         //This will create any missing table in the db
         //Use force: true to delete everything before sync
         var forceSync = false;
 
-        Wikiurl.sync({force:forceSync})
+        //sequelize.sync({force:forceSync})
+        Article.sync({force:forceSync})
 
             .then(function(){
-                return Article.sync({force:forceSync});
+                return Wikiurl.sync({force:forceSync});
             })
 
             .then(function(){
@@ -174,8 +174,12 @@ function GraphoDB() {
             })
         
             .then(function () {
-                callback(null); //Done initing, fire callback with no errors
-            }).catch(callback);
+                callback(); //Done initing, fire callback with no errors
+            })
+            
+            .catch(function(error){ 
+                callback(error);
+            });
     }
 }
 

@@ -12,6 +12,9 @@ var async = require("async");
 //Module to execute crawling functions
 var graphodb = require("./database.js");
 
+//Module with function to query graphodb
+var queries = require("./queries.js");
+
 //Utils
 var print = console.log;
 
@@ -29,13 +32,28 @@ app.response.jsonError = function(error) {
     });    
 }
 
-
-app.get("/get_article", function(req, res) {
+app.get("/get_art", function(req, res) {
     var url = req.query.url;
     var lang = req.query.lang || "en";
+    var deep = req.query.deep || 1;
+    try { deep = parseInt(deep); } catch(e) { deep = 1 }
     
     if(!url)
         return res.jsonError("Url is missing.");
+
+    //Ensure the url is properle encoded
+    url = encodeURIComponent(url);
+
+    queries.getArticleDataByUrl(url, lang, deep, function(error, articleData) {
+        res.json(articleData);
+    });
+
+});
+
+
+
+app.get("/get_article", function(req, res) {
+
 
     var responseObj = {
         url: url,
@@ -77,9 +95,9 @@ app.get("/get_article", function(req, res) {
             links.push(link.url);        
         }, this);
 
-        will need to add id for compare links
-        links that do not have articles cant participate
-        
+        //will need to add id for compare links
+        //links that do not have articles cant participate
+        //must find way to check category of some page to detect if it is a desambiguation etc to remove
 
         responseObj.links = links;
         res.json(responseObj);
@@ -125,6 +143,9 @@ app.get('/get_nodes_and_links', function (req, res) {
 //Init DB
 print("Loading database...");
 graphodb.init(function() {
+
+    //Init queries Module
+    queries.init(graphodb);
 
     //Get models
     Article = graphodb.models.Article;
