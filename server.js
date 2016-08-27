@@ -44,9 +44,27 @@ app.get("/get_art", function(req, res) {
     //Ensure the url is properle encoded
     url = encodeURIComponent(url);
 
-    //Check bug of tree view, 
-    //Modify to deal with feedback
-    //implement mode to draw a back line
+    //test if the recursive function works with more than 1 per time
+    //SOLVED. It works
+
+    //Check bug of tree view in drag nodes
+    //SOLVED.
+    //this will be fixed once we got exclusive identifier for each node
+
+
+    /* 
+    Modify to deal with feedback
+    implement mode to draw a back line
+    */
+
+    //dont forget that you must take the links that links to the target page (forward)
+    //People, countries, states, maybe companies, diseases,facts, animals must be removed as invalid links. Must check what else
+
+    //deal with the eternal recursive call on great deep values
+    //must find a way for it stop on find an already placed link
+    //SOLVED. Just implement an universal dictionary that all the articles will consult if the id was already placed
+    //Draw back is that it will not be possible to do it parallel maybe
+    //If we do parallel, on finish will be need to check if ids repeat
 
 
     queries.getArticleDataByUrl(url, lang, deep, function(error, articleData) {

@@ -2,7 +2,10 @@
 var async = require("async");
 
 //Module to execute crawling functions
-var graphodb = require("./database.js");
+
+//Database api to use
+//var graphodb = require("./database.js");
+var graphodb = require("./neo4jdb.js");
 
 //Module to extract data from wikipedia
 var wikipediaApi = require("./wikipediaApi.js");
@@ -14,7 +17,11 @@ var fs = require("fs");
 var print = console.log;
 var exit = process.exit;
 
+//Create error log file
 var errorLog = "------------ Grapho Error Log ------------\r\n\r\n\r\n";
+var errorLogFileName = "logs/error_log_" + Math.random()*1000 + ".txt";
+fs.writeFileSync(errorLogFileName, errorLog);
+
 var writeErrorLog = function(log) {
     if(log == null)
         return;
@@ -26,13 +33,14 @@ var writeErrorLog = function(log) {
     } catch (e){
         logText = log;
     } finally {
-        errorLog += logText + "\r\n\r\n\r\n";
+        //errorLog += logText + "\r\n\r\n\r\n";
+        fs.appendFileSync(errorLogFileName, logText + "\r\n\r\n\r\n");
     }
     
 }
 var saveErrorLog = function() {
-    fs.writeFileSync("logs/error_log_" + Math.random()*1000 + ".txt", errorLog);
-    print("Error log saved.");
+    //fs.writeFileSync("logs/error_log_" + Math.random()*1000 + ".txt", errorLog);
+    //print("Error log saved.");
 }
 
 print("GRAPHO CRAWL")
@@ -175,6 +183,7 @@ function crawlLinksOfTargetPage(page, lang, callback) {
     //Get wikiurl ref
     Wikiurl.findOne({where:{url: page, lang: lang}})
         .then(function(wikiurlRef){
+            
             //get article ref
             return Article.findOne({where:{id: wikiurlRef.articleId}});
         })
@@ -302,10 +311,10 @@ function crawlUnique(page, lang, crawlNumber, callback) {
                     })
                     .then(function() {
                         //If the article is already created, return
-                        /*if(!artCreated) {
+                        if(!artCreated) {
                             callback(null, crawlNumber);
                             return;
-                        }*/
+                        }
 
                         //Add links to article async
                         asyncAddLinksToArticle(articleRef, pageInfo.links, lang, function(error){

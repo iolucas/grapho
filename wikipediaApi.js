@@ -96,6 +96,11 @@ function getAbstractLinks(page, lang, callback) {
                 //We should use the '/wiki/' string length
                 var linkName = link.substring(6);
 
+                //Remove hashtag from url if any
+                var hashIndex = linkName.indexOf("#");
+                if(hashIndex != -1)
+                    linkName = linkName.substring(0, hashIndex);
+
                 //If the link is not in the links array, push it 
                 if(links.indexOf(linkName) == -1)
                     links.push(linkName);

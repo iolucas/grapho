@@ -75,15 +75,30 @@ var artTitle = "name";
 var artLinks = "children";
 
 //Recursive function to populate a resultObject with articles and its links
-function getArticleLinksRecursive(article, resultObject, deepLevel, callback) {
+function getArticleLinksRecursive(article, resultObject, deepLevel, callback, uniqueIdDict) {
 
     deepLevel = deepLevel || 1;
+
+    uniqueIdDict = uniqueIdDict || {}
 
     resultObject[artTitle] = article.title;
     resultObject.id = article.id;
 
+    //Check if the article Id is in the unique id rect
+    if(uniqueIdDict[article.id]) {
+        //If so, this id was already placed here, 
+        //Place the article and its id for reference in the result obj
+        //fire success callback and return
+        callback(); //Fire callback successfully
+        return;
+    } else {
+        //If not, place it and keep going
+        uniqueIdDict[article.id] = true;
+    }
+
     //Get links from the article
     //Must filter null links
+    //Solved. The filter already do that on try to find null id articles (not allowed)
     article.getLinkFromHere({
             attributes: ['articleId']
         })
@@ -141,7 +156,7 @@ function getArticleLinksRecursive(article, resultObject, deepLevel, callback) {
                             print(err);
 
                         taskCallback(); //Fire task callback successfully
-                    });
+                    }, uniqueIdDict);
 
                 }, 1);
 
