@@ -3,6 +3,11 @@ var Promise = require("bluebird");
 
 var db; //Database connection
 
+//Function to escape regex special characters
+RegExp.escape = function(text) {
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\\\$&");
+}
+
 module.exports = new neo4jDB();
 
 //Module to store the grapho database related stuff
@@ -44,7 +49,7 @@ function neo4jDB() {
             ArticleLink: {}
         }
 
-
+        console.log(constQuery);
         db.cypherQuery(constQuery, function(err, result) {
             callback(err); //Fire the done callback
         });
@@ -92,8 +97,42 @@ var baseModel = new function() {
         });
     }
 
-    this.findAll = function() {
+    this.findAll = function(options) {
+        this.checkInheritance();
 
+        var self = this;
+
+        return new Promise(function(resolve, reject) {
+
+            if(!options.where)
+                return reject("where object is missing on findAll");
+
+            //Construct where object
+            var matchQuery = "MATCH (matched:" + self.model + ")";
+
+            var whereObjQuery = getFindWhereQuery(options.where, "matched");
+            
+            var returnQuery = "RETURN matched";
+            var neoQuery = [matchQuery, whereObjQuery, returnQuery].join(" ");
+
+            console.log(neoQuery);
+
+            db.cypherQuery(neoQuery, function(err, result) {
+                if(err) 
+                    reject(err);
+                else {
+                    if(result.data.length == 0)
+                        return reject("No results found.");
+                     
+                    var baseModelDataArray = [];
+                    result.data.forEach(function(resultData) {
+                        baseModelDataArray.push(new self(resultData));    
+                    }, this);
+
+                    resolve(baseModelDataArray); //Resolve signaling when it is created
+                }
+            });
+        });
     }
 
     this.findOrCreate = function(options) {
@@ -131,6 +170,7 @@ var baseModel = new function() {
             var returnQuery = "RETURN node, matched";
             var neoQuery = [matchQuery, "WITH matched", mergeQuery, createQuery, returnQuery].join(" ");
 
+            console.log(neoQuery);
             db.cypherQuery(neoQuery, function(err, result) {
                 if(err) 
                     reject(err);
@@ -154,16 +194,21 @@ var baseModel = new function() {
 
             var whereValue = "";
 
+            //Adjust key string
             if(key == "id")
                 key = "id(" + matchVar + ")";
             else
                 key = matchVar + "." + key;
 
-            must fix this thing of regular expression for case insensitive
-            must implement find all method
+            //Check some particular code to apply
 
-            if((typeof value) == 'string')
-                whereValue += key + " = '" + value + "'";
+            //If the value passed is equal to null
+            if(value == null)
+                whereValue += key + " IS NULL";   
+            //If we should apply regex 
+            else if((typeof value) == 'string')
+                whereValue += key + " =~ '(?i)" + RegExp.escape(value) + "'";
+            //If none of the above, return normal key/value
             else
                 whereValue += key + " = " + value;
 
@@ -223,6 +268,7 @@ var ArticleModel = function(articleData) {
 
             var neoQuery = [matchWikiurlQuery, setArticleIdQuery, matchArticleQuery, createUniqueRedirectToQuery].join(" ");
 
+            console.log(neoQuery);
             db.cypherQuery(neoQuery, function(err) {
                 if(err) 
                     reject(err);
@@ -242,6 +288,7 @@ var ArticleModel = function(articleData) {
 
             var neoQuery = [matchArticleQuery, matchWikiurlQuery, createUniqueRedirectToQuery].join(" ");
 
+            console.log(neoQuery);
             db.cypherQuery(neoQuery, function(err) {
                 if(err) 
                     reject(err);
