@@ -112,7 +112,7 @@ var baseModel = new function() {
 
             var whereObjQuery = getFindWhereQuery(options.where, "matched");
             
-            var returnQuery = "RETURN matched";
+            var returnQuery = "RETURN matched LIMIT 1000";
             var neoQuery = [matchQuery, whereObjQuery, returnQuery].join(" ");
 
             console.log(neoQuery);
@@ -245,7 +245,9 @@ var baseModel = new function() {
     }
 }
 
-
+//keep reading about graph applications
+//start think in an alpha implementation
+//read about ex classification
 
 
 var ArticleModel = function(articleData) {

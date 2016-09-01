@@ -1,6 +1,14 @@
-var testStr = "Luc#as#asufnasfu#asffasf";
-var hashIndex = testStr.indexOf("#")
-if(hashIndex != -1)
-    testStr = testStr.substring(0, hashIndex);
+//Module to extract data from wikipedia
+var wikipediaApi = require("./wikipediaApi.js");
+var fs = require("fs");
 
-console.log(testStr);
+
+wikipediaApi.getPageBackLinks(process.argv[2], "en").then(function(result){
+    console.log(result);
+    console.log(result.length);
+
+    fs.writeFileSync("result.txt", result.join("\r\n"));
+
+}, function(err) {
+    console.log(err);
+});

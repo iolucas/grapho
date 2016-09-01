@@ -3,6 +3,8 @@ var Promise = require('promise');
 var cheerio = require('cheerio');
 var async = require('async');
 
+//Utils
+var print = console.log;
 
 var wikipediaApiUrl = ".wikipedia.org/w/api.php";
 
@@ -19,6 +21,10 @@ var wikipediaApiUrl = ".wikipedia.org/w/api.php";
 //True search page
 //https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=Java&utf8=&srprop=titlesnippet|size|wordcount|timestamp|snippet|redirecttitle|redirectsnippet|sectiontitle|sectionsnippet&srlimit=500&srinterwiki
 
+
+//Get some page back links
+//https://en.wikipedia.org/w/api.php?action=query&list=backlinks&bllimit=250&blfilterredir=all&blnamespace=0&bltitle=Tibia_(video_game)&blredirect
+
 module.exports = {
 
     getPageNonReverseAbstractLinks: null,
@@ -27,6 +33,7 @@ module.exports = {
 
     getPageLinks: getPageLinks,
 
+    getPageBackLinks: getPageBackLinks,
 }
 
 
@@ -367,7 +374,7 @@ function getPageLinks(page, lang) {
 
         var requestUrl = "https://" + lang + ".wikipedia.org/w/api.php?action=query&redirects&pllimit=500&format=json&prop=links&titles=" + page;
 
-        getPartialLinks(requestUrl, function(buffer, err) {
+        getPartialPageLinks(requestUrl, function(buffer, err) {
             //If error
             if(err) //reject with error obj
                 reject(err);
@@ -375,6 +382,153 @@ function getPageLinks(page, lang) {
                 resolve(buffer);
         });
 
+    });
+}
+
+function getPartialPageLinks(url, callback, originalUrl, buffer) {
+
+    //Set optional options
+    originalUrl = originalUrl || url;   //Original url to be used for continue options
+    buffer = buffer || [];  //Buffer to store links
+
+    //Execute get request
+    httpsGet(url).then(function(recData) {
+
+        //Parse json result
+        recObj = JSON.parse(recData);            
+
+        //Iterate thru the pages
+        for(var page in recObj['query']['pages']) {
+
+            var pageObj = recObj['query']['pages'][page];
+
+            //Iterate thru the links on the page
+            for(var link in pageObj['links']) {
+                var linkObj = pageObj['links'][link];
+                buffer.push(linkObj['title']);
+            }
+        }
+
+        //If we still got results to go
+        if(recObj['continue']) {
+            //Recurse this function again
+            var continueUrl = originalUrl + "&plcontinue=" + recObj['continue']["plcontinue"];
+            getPartialPageLinks(continueUrl, callback, originalUrl, buffer);
+        } else {
+            //If there is no continue (results to gather), resolve the callback
+            callback(buffer);
+        }
+
+    }, function(err) {
+        //If some error, resolve callback with null
+        callback(null, err);
+    });
+}
+
+function getPageBackLinks(page, lang) {
+    return new Promise(function (resolve, reject) {
+        
+        //If no page specified, return error
+        if(!page)
+            reject("ERROR: No page specified.");
+
+        lang = lang || "en";    //If the language was not specified, set en (English)
+
+        var queryString = "?action=query&format=json&list=backlinks&bllimit=250&blnamespace=0&blredirect&bltitle=" + page;
+
+        var requestUrl = "https://" + lang + wikipediaApiUrl + queryString;
+
+        getPartialPageBackLinks(requestUrl, function(buffer, err) {
+            //If error
+            if(err) //reject with error obj
+                reject(err);
+            else //if no error, resolve with buffer
+                resolve(buffer);
+        });
+
+    });
+}
+
+
+
+function encodeContinueUnicodeChar(text) {
+    return text.replace(/\|0\|(.+)\|0\|/gi, function(match, character) {
+        return "|0|" + encodeURIComponent(character) + "|0|";
+    });
+}
+
+function getPartialPageBackLinks(url, callback, originalUrl, buffer) {
+
+    //Set optional options
+    originalUrl = originalUrl || url;   //Original url to be used for continue options
+    buffer = buffer || [];  //Buffer to store links
+
+    //Execute get request
+    httpsGet(url).then(function(recData) {
+        
+        //Parse json result
+        var recObj = JSON.parse(recData);        
+
+        //Iterate thru the pages
+        for(var page in recObj['query']['backlinks']) {
+
+            var pageObj = recObj['query']['backlinks'][page];
+            
+            buffer.push(pageObj['title']);
+
+            //If there is redirect links, push them to the buffer too
+            if(pageObj['redirlinks']) {
+                pageObj['redirlinks'].forEach(function(redirlink) {
+                    buffer.push(pageObj['title']);    
+                }, this);
+            }
+
+        }
+
+    
+        //If we still got results to go
+        if(recObj['continue']) {
+            //Recurse this function again
+            var continueValue = encodeContinueUnicodeChar(recObj['continue']["blcontinue"]);
+            var continueUrl = originalUrl + "&blcontinue=" + continueValue;
+            getPartialPageBackLinks(continueUrl, callback, originalUrl, buffer);
+        } else {
+            //If there is no continue (results to gather), prepare results
+            var pageBackLinks = [];
+
+            for (var i = 0; i < buffer.length; i++) {
+                var link = buffer[i];
+                
+                //If the link already exists, proceed next iteration
+                if(pageBackLinks.indexOf(link) != -1)
+                    continue;
+                
+                //If the link is a desambiguation page
+                if(link.indexOf("(disambiguation)") != -1)
+                    continue;
+
+                //If the link is a list of something
+                if(link.indexOf("List of") == 0)
+                    continue;
+
+                //If the link is a index of something
+                if(link.indexOf("Index of") == 0)
+                    continue;
+
+                //If the link is a glossary of something
+                if(link.indexOf("Glossary of") == 0)
+                    continue;
+
+                pageBackLinks.push(link);
+            }
+            
+            //resolve the callback
+            callback(pageBackLinks);
+        }
+
+    }, function(err) {
+        //If some error, resolve callback with null
+        callback(null, err);
     });
 }
 
@@ -419,52 +573,6 @@ function getNormalizeWikiLink(page, lang) {
     });
 
 }
-
-function print() {
-    return console.log.apply(this, arguments);
-}
-
-function getPartialLinks(url, callback, originalUrl, buffer) {
-
-    //Set optional options
-    originalUrl = originalUrl || url;   //Original url to be used for continue options
-    buffer = buffer || [];  //Buffer to store links
-
-    //Execute get request
-    httpsGet(url).then(function(recData) {
-
-        //Parse json result
-        recObj = JSON.parse(recData);            
-
-        //Iterate thru the pages
-        for(var page in recObj['query']['pages']) {
-
-            var pageObj = recObj['query']['pages'][page];
-
-            //Iterate thru the links on the page
-            for(var link in pageObj['links']) {
-                var linkObj = pageObj['links'][link];
-                buffer.push(linkObj['title']);
-            }
-        }
-
-        //If we still got results to go
-        if(recObj['continue']) {
-            //Recurse this function again
-            var continueUrl = originalUrl + "plcontinue=" + recObj['continue']["plcontinue"];
-            getPartialLinks(continueUrl, callback, originalUrl, buffer);
-        } else {
-            //If there is no continue (results to gather), resolve the callback
-            callback(buffer);
-        }
-
-    }, function(err) {
-        //If some error, resolve callback with null
-        callback(null, err);
-    });
-}
-
-
 
 
 function simpleHttpsGet(url, callback) {

@@ -64,13 +64,6 @@ graphodb.init(function(error) {
         return;
     }
 
-    /*wikipediaApi.getPageAbstractLinks("Tibia_(computer_game)", "en", function(err, links){
-        console.log(links);
-
-    });
-
-return;*/
-
     //Get models
     Article = graphodb.models.Article;
     Wikiurl = graphodb.models.Wikiurl; 
@@ -78,11 +71,76 @@ return;*/
     createNewArticle = createModelAsyncFunction(Article, 'create');
     createNewWikiurl = createModelAsyncFunction(Wikiurl, 'create');
 
-    //Methods:
-    //addRedirectUrl
-    //addLinkFromHere
+    if(page == '--backlinks-of') {
+        page = process.argv[3];
+        lang = process.argv[4] || "en";
 
-    if(page == '--all-target') {
+        //Get the page backlinks
+        print("Getting backlinks...");
+        wikipediaApi.getPageBackLinks(page, lang).then(function(backlinks) {
+            print(backlinks.length + " backlinks got.");
+
+            totalLinks = backlinks.length;
+            currentLink = 0;
+            doneLinks = 0;
+
+            //Create a queue object
+            var queue = async.queue(function(wikiLink, taskCallback) {
+                //encoded the backlink
+                wikiLink = encodeURIComponent(wikiLink);
+
+                currentLink++;
+                print("Crawling link " + currentLink + " of " + totalLinks + "...");
+                crawlUnique(wikiLink, lang, currentLink, function(err, crawlNumber) {
+                    doneLinks++;
+
+                    if(err) {
+                        print(err);
+                        writeErrorLog(err);
+                    } else {
+                        print("Done with crawl number " + crawlNumber);
+                    }
+
+                    var leftLinks = totalLinks - doneLinks;
+
+                    print(leftLinks + " links left.");    
+
+                    //In case a crawl fails here just print error, keep with the queue (call taskcallback with no errors)
+                    taskCallback(err);
+                });
+
+            }, 100);
+
+            queue.drain = function(err) {
+                if(err) {
+                    print("ERROR while adding crawling:");
+                    print(err);
+                } else {
+                    print("Crawl empty article wikiUrls finished successfully."); //Fire the callback with success
+                } 
+                saveErrorLog();                   
+            }
+
+            queue.push(backlinks, function(err) {
+
+                if(err) {
+                    print("ERROR while adding crawling:");
+                    writeErrorLog(err);
+                    print(err);
+                    return;
+                }
+                
+                //print("Link done.");
+            });        
+
+
+
+        }, function(err) {
+            print("ERROR while getting backlinks:");
+            print(err);
+        });
+
+    } else if(page == '--all-target') {
 
         page = process.argv[3];
         lang = process.argv[4] || "en";
