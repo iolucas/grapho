@@ -1,7 +1,26 @@
 //Module to manage async calls
 var async = require("async");
 
+var neo4j = require('node-neo4j');
+var db = new neo4j('http://neo4j:lucas@localhost:7474');
+
+/*db.cypherQuery(neoQuery, function(err, result) {
+    if(err) 
+        reject(err);
+    else {
+        if(result.data.length == 0)
+            return reject("No results found.");
+            
+        var baseModelData = new self(result.data[0]);
+        resolve(baseModelData); //Resolve signaling when it is created
+    }
+});*/
+
 //Module to execute crawling functions
+
+//Check dbpedia for more data
+//http://dbpedia.org/page/Index_of_Windows_games
+//http://stackoverflow.com/questions/24600949/sparql-query-to-extract-wikipedia-infobox-data-using-dbpedia
 
 //Database api to use
 //var graphodb = require("./database.js");
@@ -71,7 +90,25 @@ graphodb.init(function(error) {
     createNewArticle = createModelAsyncFunction(Article, 'create');
     createNewWikiurl = createModelAsyncFunction(Wikiurl, 'create');
 
-    if(page == '--backlinks-of') {
+    if(page == "--empty") {
+        print("Crawling every wikiurl no article...")
+        Wikiurl.findAll({where:{articleId:null}}).then(function(results){
+
+            //Generate array of urls from the query results
+            var urlCollection = [];
+            for (var i = 0; i < results.length; i++)
+                urlCollection.push(results[i].url);
+
+            //Crawl the url collection
+            crawlUrlCollection(urlCollection, lang, function(){
+                print("Crawling finished.");
+            });     
+
+        }).catch(function(error){
+            print(error);
+        });  
+
+    } else if(page == '--backlinks-of') {
         page = process.argv[3];
         lang = process.argv[4] || "en";
 
@@ -172,7 +209,7 @@ graphodb.init(function(error) {
             var queue = async.queue(function(wikiLink, taskCallback) {
                 currentLink++;
                 print("Crawling link " + currentLink + " of " + totalLinks + "...");
-                crawlUnique(wikiLink.url, wikiLink.lang, currentLink, function(err, crawlNumber) {
+                crawlUniqueDirect(wikiLink.url, wikiLink.lang, currentLink, function(err, crawlNumber) {
                     doneLinks++;
 
                     if(err) {
@@ -190,7 +227,7 @@ graphodb.init(function(error) {
                     taskCallback(err);
                 });
 
-            }, 100);
+            }, 10);
 
             queue.drain = function(err) {
                 if(err) {
@@ -220,7 +257,7 @@ graphodb.init(function(error) {
     } else {
 
         //Craw a unique page
-        crawlUnique(page, lang, 1, function(error){
+        crawlUniqueDirect(page, lang, 1, function(error){
             if(error) {
                 print("Error:")
                 print(error);
@@ -331,6 +368,143 @@ function crawlLinksOfTargetPage(page, lang, callback) {
         });     
 }
 
+
+function crawlUrlCollection(urlCollection, lang, callback) {
+
+    var urlQty = urlCollection.length;
+    var downloadsLeft = urlCollection.length;
+    var doneQty = 0;
+
+    print("Pages left: " + downloadsLeft);
+
+    var urlCollectionEmptyFlag = false;
+
+    //Queue to handle addition of items into the database
+    var databaseQueue = async.queue(function(pageInfo, taskCallback) {
+        
+        //Add this pageInfo data to the database
+        addArticleDataToDb(pageInfo, lang, function(err) {
+            taskCallback(err, pageInfo.title);
+        });
+
+    }, 2);
+
+    //Callback to be called when the database queue are empty
+    databaseQueue.drain = function() {
+        console.log("Database queue is empty.");
+
+        //If the url collection to be download is empty, call the finish callback
+        if(urlCollectionEmptyFlag)
+            callback();
+    }
+
+    //Queue to handle the download of the wikipedia pages
+    var wikipageQueue = async.queue(function(url, taskCallback) {
+
+        print("Getting links for page: '" + url + "'");
+
+        wikipediaApi.getPageAbstractLinks(url, lang, function(error, pageInfo) {
+
+            downloadsLeft--;
+
+            //If error, exit with it
+            if(error) {
+                taskCallback(getErrorString(error, 
+                    "Crawl Error with page: '" + url + "': "));
+                return;
+            }
+
+            pageInfo.url = url;
+
+            //Push this pageinfo to the database queue
+            databaseQueue.push(pageInfo, function(err, articleTitle) {
+                doneQty++;
+                if(err) {
+                    var errorString = getErrorString(err, "Error while adding data to database from url " + url);
+                    print(errorString);
+                    writeErrorLog(errorString);
+                } else {
+                    print("Article '" + articleTitle + "' added to the database.");
+                } 
+                print("Articles done: " + doneQty + "/" + urlQty);
+            });
+
+            //Call the task finish callback
+            taskCallback(null, url);
+        });
+
+    }, 100);
+
+    //Callback to be called when the wikipages queue are empty
+    wikipageQueue.drain = function() {
+        console.log("Wikipages queue is empty.");
+        urlCollectionEmptyFlag = true;
+    }
+
+    wikipageQueue.push(urlCollection, function(err, url){
+        if(err) {
+            var errorString = getErrorString(err, "Error while downloading page: " + url);
+            console.log(errorString);
+            writeErrorLog(errorString);
+        } else {
+            print("Page '" + url + "' downloaded. Pages left: " + downloadsLeft);
+        }
+    });
+}
+
+//Function to crawl links and add them direcly with one query
+function crawlUniqueDirect(page, lang, crawlNumber, callback) {
+
+    crawlUrlCollection([page], lang, function() {
+        callback();
+    });
+
+    return;
+
+    print("Getting links for page: " + page);
+
+    wikipediaApi.getPageAbstractLinks(page, lang, function(error, pageInfo) {
+        //If error, exit with it
+        if(error) {
+            callback(getErrorString(error, 
+                "Crawl Error with page: " + page + ", crawl number " + crawlNumber + ": "));
+            return;
+        }
+
+        pageInfo.url = page;
+
+        addArticleDataToDb(pageInfo, lang, function(err) {
+            callback(err, crawlNumber);
+        });
+    });
+}
+
+
+function addArticleDataToDb(pageInfo, lang, callback) {
+    //Construct query
+    var neoQuery = 
+        "MERGE (article:Article { wikiPageId:" + pageInfo.pageId + "})" + 
+        " ON CREATE SET article.title = '" + pageInfo.title + "', article.language = '" + lang + "'" + 
+        " MERGE (articleUrl:Wikiurl { url_lang:'" + pageInfo.url + "_" + lang + "' })" +
+        " ON CREATE SET articleUrl.url = '" + pageInfo.url + "', articleUrl.lang = '" + lang + "', articleUrl.articleId = '" + pageInfo.pageId + "'" + 
+        " CREATE UNIQUE (articleUrl)-[:RedirectsTo]->(article)";
+
+    for (var i = 0; i < pageInfo.links.length; i++) {
+        var link = pageInfo.links[i];
+        neoQuery += 
+            " MERGE (articleLink" + i + ":Wikiurl { url_lang:'" + link + "_" + lang + "' })" +
+            " ON CREATE SET articleLink" + i + ".url = '" + link + "', articleLink" + i + ".lang = '" + lang + "'" +
+            " CREATE UNIQUE (article)-[:LinksTo]->(articleLink" + i + ")";
+    }
+
+    //console.log(neoQuery);
+
+    db.cypherQuery(neoQuery, function(err, result) {
+        callback(err);
+    });
+}
+
+
 //Crawl an unique page, register it if not regitered and register its abstract links
 function crawlUnique(page, lang, crawlNumber, callback) {
 
@@ -359,10 +533,10 @@ function crawlUnique(page, lang, crawlNumber, callback) {
                 
                 //Try to get instance of page wikiurl or create it if not found
                 Wikiurl
-                    .findOrCreate({ where: {
-                        url: page,
-                        lang: lang
-                    }})
+                    .findOrCreate({ 
+                        where: { url: page, lang: lang },
+                        defaults: { url_lang: page + "_" + lang }
+                    })
                     .spread(function(wikiurlRef, urlCreated) {
                         //Add the wikiurl ref to the article redirection
                         return articleRef.addRedirectUrl(wikiurlRef);
@@ -392,6 +566,7 @@ function crawlUnique(page, lang, crawlNumber, callback) {
 
     });
 }
+
 
 //KNOW ISSUES:
 //WHEN DEALING WITH TOO MUCH DATA, CONFLICTS ON ADDING LINKS TO ARTICLES ARE FIRED
@@ -442,10 +617,10 @@ function asyncAddLinksToArticle(article, links, lang, callback) {
     //Create a queue object
     var queue = async.queue(function(link, taskCallback) {
         Wikiurl
-            .findOrCreate({ where: { //Try get or create the wikiurl ref
-                url: link,
-                lang: lang
-            }})
+            .findOrCreate({  //Try get or create the wikiurl ref
+                where: { url: link, lang: lang },
+                defaults: { url_lang: link + "_" + lang }
+            })
             .spread(function(wikiurlRef, created) {
 
                 //if(!created)
