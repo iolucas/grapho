@@ -1,6 +1,8 @@
 var neo4j = require('node-neo4j');
 var Promise = require("bluebird");
 
+var async = require("async");
+
 var db; //Database connection
 
 //Function to escape regex special characters
@@ -18,30 +20,6 @@ function neo4jDB() {
 
     this.init = function(callback) {
 
-        //Connect to db
-        db = new neo4j('http://neo4j:lucas@localhost:7474');
-
-        //Define constraints
-        var constQuery = "CREATE CONSTRAINT ON (wikiurl:Wikiurl) ASSERT wikiurl.url_lang IS UNIQUE";
-
-        //Define models
-/*
-
-
-
-        var Article = {}
-
-        Article.findOrCreate = function()
-
-                Article
-            .findOrCreate({
-                where: { wikiPageId: pageInfo.pageId},
-                defaults: { title: pageInfo.title, language: lang } //Data to use for the left fields
-            })
-*/
-
-        
-
         //Extern models
         self.models = {
             Wikiurl: WikiurlModel,
@@ -49,9 +27,30 @@ function neo4jDB() {
             ArticleLink: {}
         }
 
-        console.log(constQuery);
-        db.cypherQuery(constQuery, function(err, result) {
-            callback(err); //Fire the done callback
+        //Connect to db
+        db = new neo4j('http://neo4j:lucas@localhost:7474');
+
+
+        //Define constraints
+        var urlLangConstraint = "CREATE CONSTRAINT ON (wikiurl:Wikiurl) ASSERT wikiurl.url_lang IS UNIQUE";
+        var wikiPageIdConstraint = "CREATE CONSTRAINT ON (article:Article) ASSERT article.wikiPageId IS UNIQUE";
+
+        var asyncQueue = async.queue(function(constQuery, taskCallback) {
+            console.log(constQuery);
+            db.cypherQuery(constQuery, function(err, result) {
+                taskCallback(err); //Fire the taskCallback
+            });
+        }, 1)
+
+        //Once tasks ends
+        asyncQueue.drain = function() {
+            callback(); //Fire callback successfully
+        }
+
+        //Push all the queries to the queue
+        asyncQueue.push([urlLangConstraint, wikiPageIdConstraint], function(err) {
+            if(err)
+                callback(err); //Fire callback if some error
         });
     }
 }
