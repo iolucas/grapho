@@ -10,7 +10,8 @@ var csv = require("fast-csv");
 var async = require("async");
 
 //Module to execute crawling functions
-var graphodb = require("./database.js");
+//var graphodb = require("./database.js");
+var graphodb = require("./neo4jdb.js");
 
 //Module with function to query graphodb
 var queries = require("./queries.js");

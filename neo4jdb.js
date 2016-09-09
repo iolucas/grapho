@@ -36,7 +36,7 @@ function neo4jDB() {
         var wikiPageIdConstraint = "CREATE CONSTRAINT ON (article:Article) ASSERT article.wikiPageId IS UNIQUE";
 
         var asyncQueue = async.queue(function(constQuery, taskCallback) {
-            console.log(constQuery);
+            //console.log(constQuery);
             db.cypherQuery(constQuery, function(err, result) {
                 taskCallback(err); //Fire the taskCallback
             });
@@ -80,7 +80,7 @@ var baseModel = new function() {
             var returnQuery = "RETURN matched LIMIT 1";
             var neoQuery = [matchQuery, whereObjQuery, returnQuery].join(" ");
 
-            console.log(neoQuery);
+            //console.log(neoQuery);
 
             db.cypherQuery(neoQuery, function(err, result) {
                 if(err) 
@@ -111,10 +111,19 @@ var baseModel = new function() {
 
             var whereObjQuery = getFindWhereQuery(options.where, "matched");
             
-            var returnQuery = "RETURN matched LIMIT 1000";
+
+            var returnQuery = "RETURN matched";
+            
+            //Put a limit if it has been set
+            if(options.limit)
+                returnQuery += " LIMIT " + options.limit;
+            else
+                returnQuery += " LIMIT 1000"; //Safety limit in case not specified    
+
+
             var neoQuery = [matchQuery, whereObjQuery, returnQuery].join(" ");
 
-            console.log(neoQuery);
+            //console.log(neoQuery);
 
             db.cypherQuery(neoQuery, function(err, result) {
                 if(err) 
@@ -169,7 +178,7 @@ var baseModel = new function() {
             var returnQuery = "RETURN node, matched";
             var neoQuery = [matchQuery, "WITH matched", mergeQuery, createQuery, returnQuery].join(" ");
 
-            console.log(neoQuery);
+            //console.log(neoQuery);
             db.cypherQuery(neoQuery, function(err, result) {
                 if(err) 
                     reject(err);
@@ -194,10 +203,11 @@ var baseModel = new function() {
             var whereValue = "";
 
             //Adjust key string
-            if(key == "id")
+            if(key == "id") {
                 key = "id(" + matchVar + ")";
-            else
+            } else {
                 key = matchVar + "." + key;
+            }
 
             //Check some particular code to apply
 

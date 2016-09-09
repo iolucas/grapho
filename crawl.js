@@ -35,6 +35,13 @@ var fs = require("fs");
 //Utils
 var print = console.log;
 var exit = process.exit;
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.split(search).join(replacement);
+};
+RegExp.escape = function(text) {
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+};
 
 //Create error log file
 var errorLog = "------------ Grapho Error Log ------------\r\n\r\n\r\n";
@@ -63,17 +70,19 @@ var saveErrorLog = function() {
 }
 
 print("GRAPHO CRAWL")
-
+print("");
 
 //Get arguments passed
-var page = process.argv[2];
-var lang = process.argv[3] || "en";
+//var page = process.argv[2];
+//var lang = process.argv[3] || "en";
 
 //Models functions 
 var Article, createNewArticle;
 var Wikiurl, createNewWikiurl;
 
 //Init DB
+
+//Timeline, List of, etc must be removed from analysis
 
 graphodb.init(function(error) {
     
@@ -90,9 +99,13 @@ graphodb.init(function(error) {
     createNewArticle = createModelAsyncFunction(Article, 'create');
     createNewWikiurl = createModelAsyncFunction(Wikiurl, 'create');
 
-    if(page == "--empty") {
-        print("Crawling every wikiurl no article...")
-        Wikiurl.findAll({where:{articleId:null}}).then(function(results){
+    //Crawl all links that has no appended article
+    if(process.argv[2] == "--all-empty") {
+
+        var lang = process.argv[3] || "en";
+
+        print("Crawling every wikiurl with no article...");
+        Wikiurl.findAll({where:{articleId:null, lang: lang }, limit: 10000}).then(function(results){
 
             //Generate array of urls from the query results
             var urlCollection = [];
@@ -108,156 +121,83 @@ graphodb.init(function(error) {
             print(error);
         });  
 
-    } else if(page == '--backlinks-of') {
-        page = process.argv[3];
-        lang = process.argv[4] || "en";
+    } 
+    
+    //Crawl every links that points to the target link
+    else if(process.argv[2] == '--backlinks-of') {
+
+        var page = process.argv[3];
+        var lang = process.argv[4] || "en";
 
         //Get the page backlinks
         print("Getting backlinks...");
         wikipediaApi.getPageBackLinks(page, lang).then(function(backlinks) {
             print(backlinks.length + " backlinks got.");
 
-            totalLinks = backlinks.length;
-            currentLink = 0;
-            doneLinks = 0;
+            //Generate array of urls from the query results
+            var urlCollection = [];
+            for (var i = 0; i < backlinks.length; i++)
+                urlCollection.push(encodeURIComponent(backlinks[i]));
 
-            //Create a queue object
-            var queue = async.queue(function(wikiLink, taskCallback) {
-                //encoded the backlink
-                wikiLink = encodeURIComponent(wikiLink);
-
-                currentLink++;
-                print("Crawling link " + currentLink + " of " + totalLinks + "...");
-                crawlUnique(wikiLink, lang, currentLink, function(err, crawlNumber) {
-                    doneLinks++;
-
-                    if(err) {
-                        print(err);
-                        writeErrorLog(err);
-                    } else {
-                        print("Done with crawl number " + crawlNumber);
-                    }
-
-                    var leftLinks = totalLinks - doneLinks;
-
-                    print(leftLinks + " links left.");    
-
-                    //In case a crawl fails here just print error, keep with the queue (call taskcallback with no errors)
-                    taskCallback(err);
-                });
-
-            }, 100);
-
-            queue.drain = function(err) {
-                if(err) {
-                    print("ERROR while adding crawling:");
-                    print(err);
-                } else {
-                    print("Crawl empty article wikiUrls finished successfully."); //Fire the callback with success
-                } 
-                saveErrorLog();                   
-            }
-
-            queue.push(backlinks, function(err) {
-
-                if(err) {
-                    print("ERROR while adding crawling:");
-                    writeErrorLog(err);
-                    print(err);
-                    return;
-                }
-                
-                //print("Link done.");
-            });        
-
-
+            //Crawl the url collection
+            crawlUrlCollection(urlCollection, lang, function(){
+                print("Crawling finished.");
+            });    
 
         }, function(err) {
             print("ERROR while getting backlinks:");
             print(err);
         });
 
-    } else if(page == '--all-target') {
+    } 
+    
+    //Crawl all links that the target article linksTo
+    else if(process.argv[2] == '--all-target') {
 
-        page = process.argv[3];
-        lang = process.argv[4] || "en";
+        var page = process.argv[3];
+        var lang = process.argv[4] || "en";
 
-        crawlLinksOfTargetPage(page, lang, function(err) {
-            if(err)
-                print(err)
+        print("Crawling urls of the target url: " + page);
 
-            print("Done all links on the target");
-        });
+        //Get wikiurl ref
+        Wikiurl.findOne({where:{url: page, lang: lang}})
+            .then(function(wikiurlRef){
+                
+                //get article ref
+                return Article.findOne({where:{wikiPageId: parseInt(wikiurlRef.articleId)}});
+            })
+            .then(function(artRef){
+                //get article ref
+                return artRef.getLinkFromHere();
+            })
+        
+            .then(function(results){
+
+                //Generate array of urls from the query results
+                var urlCollection = [];
+                for (var i = 0; i < results.length; i++)
+                    urlCollection.push(results[i].url);
+
+                //Crawl the url collection
+                crawlUrlCollection(urlCollection, lang, function(){
+                    print("Crawling finished.");
+                }); 
+
+            }).catch(function(error){
+                print(error);
+            });
     }
 
-    //If this is true, we must crawl all the links with empty articles
-    else if(page == '--all-empty') {
-        var totalLinks, doneLinks, currentLink;
-        print("Crawling every wikilink without article...")
-        Wikiurl.findAll({where:{articleId:null}}).then(function(results){
+    //If no arg has been passed, crawl a unique url passed
+    else {
 
-            /*result.forEach(function(link) {
-                print(link.url);
-            }, this);*/
+        var page = process.argv[2];
+        var lang = process.argv[3] || "en";
 
-            totalLinks = results.length;
-            currentLink = 0;
-            doneLinks = 0;
-
-
-            //Create a queue object
-            var queue = async.queue(function(wikiLink, taskCallback) {
-                currentLink++;
-                print("Crawling link " + currentLink + " of " + totalLinks + "...");
-                crawlUniqueDirect(wikiLink.url, wikiLink.lang, currentLink, function(err, crawlNumber) {
-                    doneLinks++;
-
-                    if(err) {
-                        print(err);
-                        writeErrorLog(err);
-                    } else {
-                        print("Done with crawl number " + crawlNumber);
-                    }
-
-                    var leftLinks = totalLinks - doneLinks;
-
-                    print(leftLinks + " links left.");    
-
-                    //In case a crawl fails here just print error, keep with the queue (call taskcallback with no errors)
-                    taskCallback(err);
-                });
-
-            }, 10);
-
-            queue.drain = function(err) {
-                if(err) {
-                    print("ERROR while adding crawling:");
-                    print(err);
-                } else {
-                    print("Crawl empty article wikiUrls finished successfully."); //Fire the callback with success
-                } 
-                saveErrorLog();                   
-            }
-
-            queue.push(results, function(err) {
-
-                if(err) {
-                    print("ERROR while adding crawling:");
-                    writeErrorLog(err);
-                    print(err);
-                    return;
-                }
-                
-                //print("Link done.");
-            });        
-
-        }).catch(function(error){
-            print(error);
-        });     
-    } else {
+        print("Crawling unique page: " + page);
 
         //Craw a unique page
-        crawlUniqueDirect(page, lang, 1, function(error){
+        crawlUrlCollection([page], lang, function(error){
             if(error) {
                 print("Error:")
                 print(error);
@@ -265,110 +205,13 @@ graphodb.init(function(error) {
             } else {
                 print("Done Crawling.")
             }
-            saveErrorLog();
         });
     }
 
 });
 
 
-function crawlLinksOfTargetPage(page, lang, callback) {
-    var totalLinks, doneLinks, currentLink;
-
-    //Get wikiurl ref
-    Wikiurl.findOne({where:{url: page, lang: lang}})
-        .then(function(wikiurlRef){
-            
-            //get article ref
-            return Article.findOne({where:{id: wikiurlRef.articleId}});
-        })
-        .then(function(artRef){
-            //get article ref
-            return artRef.getLinkFromHere();
-        })
-        
-        /*.then(function(links) {
-            console.log(links)
-            if(!links) {
-                print("No links were return.")
-                return;
-            }
-
-            //Put all the links articleIds into an array
-            var linksArticleIds = [];
-            links.forEach(function(link) {
-                linksArticleIds.push(link.articleId);        
-            }, this);
-
-            print("Crawling every target page link...");
-            
-            return Wikiurl.findAll({ where: { id: linksArticleIds }});
-        })*/
-    
-        .then(function(results){
-            
-            /*result.forEach(function(link) {
-                print(link.url);
-            }, this);*/
-
-            totalLinks = results.length;
-            currentLink = 0;
-            doneLinks = 0;
-
-
-            //Create a queue object
-            var queue = async.queue(function(wikiLink, taskCallback) {
-                currentLink++;
-                print("Crawling link " + currentLink + " of " + totalLinks + "...");
-                crawlUnique(wikiLink.url, wikiLink.lang, currentLink, function(err, crawlNumber) {
-                    doneLinks++;
-
-                    if(err) {
-                        print(err);
-                        writeErrorLog(err);
-                    } else {
-                        print("Done with crawl number " + crawlNumber);
-                    }
-
-                    var leftLinks = totalLinks - doneLinks;
-
-                    print(leftLinks + " links left.");    
-
-                    //In case a crawl fails here just print error, keep with the queue (call taskcallback with no errors)
-                    taskCallback(err);
-                });
-
-            }, 100);
-
-            queue.drain = function(err) {
-                if(err) {
-                    print("ERROR while adding crawling:");
-                    print(err);
-                } else {
-                    print("Crawl empty article wikiUrls finished successfully."); //Fire the callback with success
-                } 
-                saveErrorLog();
-                callback();                   
-            }
-
-            queue.push(results, function(err) {
-
-                if(err) {
-                    print("ERROR while adding crawling:");
-                    writeErrorLog(err);
-                    print(err);
-                    return;
-                }
-                
-                //print("Link done.");
-            });        
-
-        }).catch(function(error){
-            print(error);
-        });     
-}
-
-
+//Crawl any collection of wikipedia urls
 function crawlUrlCollection(urlCollection, lang, callback) {
 
     var urlQty = urlCollection.length;
@@ -387,7 +230,7 @@ function crawlUrlCollection(urlCollection, lang, callback) {
             taskCallback(err, pageInfo.title);
         });
 
-    }, 2);
+    }, 1);
 
     //Callback to be called when the database queue are empty
     databaseQueue.drain = function() {
@@ -420,7 +263,8 @@ function crawlUrlCollection(urlCollection, lang, callback) {
             databaseQueue.push(pageInfo, function(err, articleTitle) {
                 doneQty++;
                 if(err) {
-                    var errorString = getErrorString(err, "Error while adding data to database from url " + url);
+                    var errorString = getErrorString(err, 
+                        "Error while adding data to database from url " + articleTitle + ": ");
                     print(errorString);
                     writeErrorLog(errorString);
                 } else {
@@ -452,55 +296,47 @@ function crawlUrlCollection(urlCollection, lang, callback) {
     });
 }
 
-//Function to crawl links and add them direcly with one query
-function crawlUniqueDirect(page, lang, crawlNumber, callback) {
-
-    crawlUrlCollection([page], lang, function() {
-        callback();
-    });
-
-    return;
-
-    print("Getting links for page: " + page);
-
-    wikipediaApi.getPageAbstractLinks(page, lang, function(error, pageInfo) {
-        //If error, exit with it
-        if(error) {
-            callback(getErrorString(error, 
-                "Crawl Error with page: " + page + ", crawl number " + crawlNumber + ": "));
-            return;
-        }
-
-        pageInfo.url = page;
-
-        addArticleDataToDb(pageInfo, lang, function(err) {
-            callback(err, crawlNumber);
-        });
-    });
-}
-
-
+//Create and execute queries to add the page crawled info into the database
 function addArticleDataToDb(pageInfo, lang, callback) {
+
+    //Ensure to escape quotes from the title and url before query
+    pageInfo.title = pageInfo.title.replace(/['\\]/g, "\\$&");
+    pageInfo.url = pageInfo.url.replace(/['\\]/g, "\\$&");
+
     //Construct query
     var neoQuery = 
         "MERGE (article:Article { wikiPageId:" + pageInfo.pageId + "})" + 
         " ON CREATE SET article.title = '" + pageInfo.title + "', article.language = '" + lang + "'" + 
         " MERGE (articleUrl:Wikiurl { url_lang:'" + pageInfo.url + "_" + lang + "' })" +
-        " ON CREATE SET articleUrl.url = '" + pageInfo.url + "', articleUrl.lang = '" + lang + "', articleUrl.articleId = '" + pageInfo.pageId + "'" + 
+        " ON CREATE SET articleUrl.url = '" + pageInfo.url + "', articleUrl.lang = '" + lang + "'" +
+        " SET articleUrl.articleId = '" + pageInfo.pageId + "'" +
         " CREATE UNIQUE (articleUrl)-[:RedirectsTo]->(article)";
-
+        
     for (var i = 0; i < pageInfo.links.length; i++) {
-        var link = pageInfo.links[i];
+        //Ensure to escape quotes from the link before query
+        var link = pageInfo.links[i].replace(/['\\]/g, "\\$&");
+
         neoQuery += 
             " MERGE (articleLink" + i + ":Wikiurl { url_lang:'" + link + "_" + lang + "' })" +
             " ON CREATE SET articleLink" + i + ".url = '" + link + "', articleLink" + i + ".lang = '" + lang + "'" +
             " CREATE UNIQUE (article)-[:LinksTo]->(articleLink" + i + ")";
     }
 
-    //console.log(neoQuery);
+    //Add in/out ConnectsTo relation to this article 
+    neoQuery += 
+        " WITH article MATCH (article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(targetArticle:Article)" + 
+        " CREATE UNIQUE (article)-[:ConnectsTo]->(targetArticle)" +
+        " WITH article MATCH (targetArticle:Article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(article)" + 
+        " CREATE UNIQUE (targetArticle)-[:ConnectsTo]->(article)";
 
-    db.cypherQuery(neoQuery, function(err, result) {
-        callback(err);
+    db.cypherQuery(neoQuery, function(error, result) {
+        if(error) {
+            console.log(error);
+            callback(getErrorString(error, 
+                "Error while executing query on page: " + pageInfo.title + ": "));
+        } else {
+            callback();
+        }        
     });
 }
 

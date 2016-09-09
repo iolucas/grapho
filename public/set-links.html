@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8">
+        <title>Navigatte</title> 
+        <style>
+
+            body {
+                background: #64ffda;
+                margin: 0;
+                font-family: Calibri;
+            }
+
+            header {
+                background-color: #333;
+                height: 80px;
+            }
+
+            #console-area {
+                background-color: #00f;
+                color: #fff;
+                font-size: 20px;
+                margin-bottom: 10px;    
+            }
+
+            #article-title {
+                font-size: 40px;
+                margin-bottom: 30px;
+            }
+
+            section {
+                text-align: center;
+                color: rgba(0, 0, 0, 0.87);
+            }
+
+            select {
+                font-size: 20px;
+            }
+
+            input[type=submit] {
+                font-size: 20px;
+            }
+
+        </style>
+	</head>
+
+	<body>
+        <header>
+
+        </header>
+        <section>
+            <div id="console-area">
+                <!-- MESSAGE-AREA -->
+            </div>
+            
+            <div id="article-title">
+                <a href="https://en.wikipedia.org/wiki/<!-- ARTICLE-TITLE -->" target="_blank"><!-- ARTICLE-TITLE --></a>
+            </div>
+
+            <b>
+                <form method="post" action="create-links">
+                    <!-- CONTENT-AREA -->
+                    <!--<b>TESTE:</b>
+                    <select name="test2">
+                        <option value="">-----------</option>
+                        <option value="saab">Saab</option>
+                        <option value="mercedes">Mercedes</option>
+                        <option value="audi">Audi</option>
+                    </select>  -->
+                    <input type="hidden" name="--article-name" value="<!-- ARTICLE-TITLE -->"/>
+                    <br><br><input type="submit" value="Compute Links"/>
+                    <br><br><br>              
+                </form>
+            </b>
+        </section>
+
+	</body>
+</html>
