@@ -40,7 +40,7 @@ String.prototype.replaceAll = function(search, replacement) {
     return target.split(search).join(replacement);
 };
 RegExp.escape = function(text) {
-    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\\\$&");
 };
 
 //Create error log file
@@ -103,9 +103,10 @@ graphodb.init(function(error) {
     if(process.argv[2] == "--all-empty") {
 
         var lang = process.argv[3] || "en";
+        var qty = parseInt(process.argv[4]) || 1000;
 
         print("Crawling every wikiurl with no article...");
-        Wikiurl.findAll({where:{articleId:null, lang: lang }, limit: 10000}).then(function(results){
+        Wikiurl.findAll({where:{articleId:null, lang: lang }, limit: qty}).then(function(results){
 
             //Generate array of urls from the query results
             var urlCollection = [];

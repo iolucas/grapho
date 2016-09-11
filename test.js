@@ -3,9 +3,11 @@ var wikipediaApi = require("./wikipediaApi.js");
 var fs = require("fs");
 
 
-wikipediaApi.getPageAbstractLinks("Hinduism_in_South_America", "en", function(result){
- console.log(arguments);
-
+wikipediaApi.getPageBackLinks(process.argv[2], "en").then(function(result){
+    console.log(result);
+    console.log(result.length)
+}, function(err) {
+    console.log(err);
 });
 
 

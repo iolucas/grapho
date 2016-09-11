@@ -34,6 +34,93 @@ module.exports = {
     getPageLinks: getPageLinks,
 
     getPageBackLinks: getPageBackLinks,
+
+    getPageWikiLinks: getPageWikiLinks
+}
+
+//Get all the page wiki links base on the page parse
+function getPageWikiLinks(page, lang, callback) {
+    //Obs.: Page must already been encoded
+
+    if(!page || !lang) {
+        callback("ERROR: Insuficient arguments.");
+        return;
+    }
+
+    var reqUrl = "https://" + lang + wikipediaApiUrl + "?action=parse&redirects&prop=text&format=json&page=" + page;
+
+    simpleHttpsGet(reqUrl, function(error, reqData) {
+        if(error) {
+            callback("ERROR:" + error);
+            return;
+        }
+
+        //Parse json object that contains only the abstract portion of the page
+        var reqObj = JSON.parse(reqData);            
+
+
+        //Check some error
+        if(reqObj['error']) {
+            //Throw reject error
+            callback("ERROR:" + reqObj['error']['code'] + " | " + reqObj['error']['info']);
+            return;
+        }
+
+        //Get page info
+        var pageTitle = reqObj['parse']['title'];
+        var pageId = reqObj['parse']['pageid'];
+
+        //Check if page has subtitle
+        //Regex get the data inside some () found
+        //var subtitleMatch = pageTitle.match(/\((.+)\)/)
+        //print(testString.match(/\((.+)\)/));
+
+        //Get the abstract html data
+        var htmlData = reqObj['parse']['text']['*']
+    
+        //Load it on cheerio (jQuery like module)
+        $ = cheerio.load(htmlData);
+
+        var links = []
+
+        //Get all the <a> tags inside the <p> tags,(where the abstract is placed) and put them into the links array
+        $('a').each(function(i, elem) {
+                
+            var link = $(this).attr('href');
+
+            //var notAllowedChars
+
+            //Check the link exists and is a wiki link
+            //Get only wikipedia links
+            //Remove pages that contains a colon (":"). Their offen are special pages. Not sure if there is articles with colon
+            if(link 
+                && link.indexOf("/wiki/") == 0 
+                && link.indexOf(":") == -1
+            ) { 
+                //We MUST NOT use last index of / to get the path cause some titles like TCP/IP, have bar in the title
+                //var lastPathIndex = link.lastIndexOf("/") + 1;
+                //We should use the '/wiki/' string length
+                var linkName = link.substring(6);
+
+                //Remove hashtag from url if any
+                var hashIndex = linkName.indexOf("#");
+                if(hashIndex != -1)
+                    linkName = linkName.substring(0, hashIndex);
+
+                //If the link is not in the links array, push it 
+                //if(links.indexOf(linkName) == -1)
+                links.push(linkName);
+            }                
+        });
+
+        //Return success with the page abstract links
+        callback(null, {
+            title: pageTitle,
+            pageId: pageId,
+            links: links    
+        });  
+
+    });
 }
 
 

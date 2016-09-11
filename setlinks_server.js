@@ -73,8 +73,10 @@ app.get("/:article", function(req, res) {
         var options = [
             ' <select name="<!-- TARGET-TITLE -->">',
                 '<option value="">-----------</option>',
-                '<option value="pos"><-NEEDS-</option>',
-                '<option value="pre">-NEEDS-></option>',
+                '<option value="isChildOfMain"><-BelongsTo-</option>',
+                '<option value="isParentOfMain">-BelongsTo-></option>',
+                '<option value="infoFlowsToMain"><-Infoflow-</option>',
+                '<option value="infoFlowsFromMain">-Infoflow-></option>',
             '</select> '
         ].join("\n");
 
@@ -84,7 +86,8 @@ app.get("/:article", function(req, res) {
             
             selectHTML +=  data[0].title + 
                 options.replace("<!-- TARGET-TITLE -->", data[1].title) + 
-                "<a href='/" + data[1].title + "'>" + data[1].title + '</a><br><br>';
+                "<a href='/" + data[1].title + "' target='_blank'>" + data[1].title + "</a> " + 
+                "<a href='https://en.wikipedia.org/wiki/" + data[1].title + "' target='_blank'>Wikipedia</a><br><br>";
         }
         
         indexPage = indexPage.replace("<!-- CONTENT-AREA -->", selectHTML);
@@ -109,11 +112,23 @@ app.post("/create-links", function(req,res) {
         var relation = "";
 
         switch(req.body[key]) {
-            case "pos":
+            /*case "pos":
                 relation = "<-[:Needs{strong:100}]-";
                 break;
             case "pre":
                 relation = "-[:Needs{strong:100}]->";
+                break;*/
+            case "isChildOfMain":
+                relation = "<-[:BelongsTo]-";
+                break;
+            case "isParentOfMain":
+                relation = "-[:BelongsTo]->";
+                break;
+            case "infoFlowsToMain":
+                relation = "<-[:Infoflow]-";
+                break;
+            case "infoFlowsFromMain":
+                relation = "-[:Infoflow]->";
                 break;
             default:
                 continue;
