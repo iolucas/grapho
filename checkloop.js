@@ -7,62 +7,69 @@ var db = new neo4j('http://neo4j:lucas@localhost:7474');
 var async = require("async");
 
 
-var page1Title = process.argv[2];
+/*var page1Title = process.argv[2];
 var page2Title = process.argv[3];
 
-console.log("");
+console.log("");*/
 
-getPagesBackAndFowardLinks(page1Title, page2Title, function(pagesData) {
-    var page1Data = pagesData[0];
-    var page2Data = pagesData[1];
+module.exports = {
+    getPagesBackAndFowardLinks: getPagesBackAndFowardLinks    
+}
 
-    //Check back links qty of each one
-    console.log(page1Data.title + " has " + page1Data.backlinks.length + " backlinks.");
-    console.log(page2Data.title + " has " + page2Data.backlinks.length + " backlinks.");
+function checkLoop(page1Title, page2Title, callback) {
 
-    //Check number of links from one article that is present on the other
-    var numberOfLinksOfPage2OnPage1 = 0;
-    //Iterate thru page1 links
-    for (var i = 0; i < page1Data.links.length; i++) {
-        var link = page1Data.links[i];
-        
-        //Iterate thru page 2 pointing urls
-        for (var j = 0; j < page2Data.urls.length; j++) {
-            var pageUrl = page2Data.urls[j];
+    getPagesBackAndFowardLinks(page1Title, page2Title, function(pagesData) {
+        var page1Data = pagesData[0];
+        var page2Data = pagesData[1];
 
-            //If the page pointing url matches the current link, 
-            if(pageUrl == link) {
-                numberOfLinksOfPage2OnPage1++; //Increment the counter
-                break;  //And exit (since the page pointing urls are different, no matches will occurr anymore)
-            }   
+        //Check back links qty of each one
+        console.log(page1Data.title + " has " + page1Data.backlinks.length + " backlinks.");
+        console.log(page2Data.title + " has " + page2Data.backlinks.length + " backlinks.");
+
+        //Check number of links from one article that is present on the other
+        var numberOfLinksOfPage2OnPage1 = 0;
+        //Iterate thru page1 links
+        for (var i = 0; i < page1Data.links.length; i++) {
+            var link = page1Data.links[i];
+            
+            //Iterate thru page 2 pointing urls
+            for (var j = 0; j < page2Data.urls.length; j++) {
+                var pageUrl = page2Data.urls[j];
+
+                //If the page pointing url matches the current link, 
+                if(pageUrl == link) {
+                    numberOfLinksOfPage2OnPage1++; //Increment the counter
+                    break;  //And exit (since the page pointing urls are different, no matches will occurr anymore)
+                }   
+            }
         }
-    }
 
-    //Check number of links from one article that is present on the other
-    var numberOfLinksOfPage1OnPage2 = 0;
-    //Iterate thru page2 links
-    for (var i = 0; i < page2Data.links.length; i++) {
-        var link = page2Data.links[i];
-        
-        //Iterate thru page 1 pointing urls
-        for (var j = 0; j < page1Data.urls.length; j++) {
-            var pageUrl = page1Data.urls[j];
+        //Check number of links from one article that is present on the other
+        var numberOfLinksOfPage1OnPage2 = 0;
+        //Iterate thru page2 links
+        for (var i = 0; i < page2Data.links.length; i++) {
+            var link = page2Data.links[i];
+            
+            //Iterate thru page 1 pointing urls
+            for (var j = 0; j < page1Data.urls.length; j++) {
+                var pageUrl = page1Data.urls[j];
 
-            //If the page pointing url matches the current link, 
-            if(pageUrl == link) {
-                numberOfLinksOfPage1OnPage2++; //Increment the counter
-                break;  //And exit (since the page pointing urls are different, no matches will occurr anymore)
-            }   
+                //If the page pointing url matches the current link, 
+                if(pageUrl == link) {
+                    numberOfLinksOfPage1OnPage2++; //Increment the counter
+                    break;  //And exit (since the page pointing urls are different, no matches will occurr anymore)
+                }   
+            }
         }
-    }
 
-    //Print results
-    console.log(page1Data.title + " cites " + page2Data.title + " " + numberOfLinksOfPage2OnPage1 + " times." + 
-        " Ratio: " + numberOfLinksOfPage2OnPage1 / page1Data.links.length);
+        //Print results
+        console.log(page1Data.title + " cites " + page2Data.title + " " + numberOfLinksOfPage2OnPage1 + " times." + 
+            " Ratio: " + numberOfLinksOfPage2OnPage1 / page1Data.links.length);
 
-    console.log(page2Data.title + " cites " + page1Data.title + " " + numberOfLinksOfPage1OnPage2 + " times." + 
-        " Ratio: " + numberOfLinksOfPage1OnPage2 / page2Data.links.length);
-});
+        console.log(page2Data.title + " cites " + page1Data.title + " " + numberOfLinksOfPage1OnPage2 + " times." + 
+            " Ratio: " + numberOfLinksOfPage1OnPage2 / page2Data.links.length);
+    });
+}
 
 
 function getPagesBackAndFowardLinks(page1Title, page2Title, callback) {
