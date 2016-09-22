@@ -1,9 +1,9 @@
-//var neo4j = require('node-neo4j');
+var neo4j = require('node-neo4j');
 var wikipediaApi = require("./wikipediaApi.js");
 var dbpediaApi = require("./dbpediaApi.js");
-//var checkLoop = require("./checkloop.js");
+var checkLoop = require("./checkloop.js");
 var async = require("async"); //Module to execute async ops
-//var fs = require("fs");
+var fs = require("fs");
 
 String.prototype.replaceAll = function(search, replacement) {
     var target = this;
@@ -24,327 +24,278 @@ var excludedTypes = [
     'http://dbpedia.org/ontology/Company'
 ];
 
-module.exports = {
-    getPreReq: getPreReq
+var mainArticleTitle = process.argv[2];
+var lang = process.argv[3] || 'en';
+
+//Variables to store the articles objects of the request
+var mainArticleObj = {
+    title: mainArticleTitle
 }
 
+var childArticlesObjs = [];
+
+//Object array to store all the articles references
+var articlesObjs;
+
 //Init app
-getPreReq("AutoCAD", "en", function(result) {});
-
-function getPreReq(pageTitle, lang, finalCallback) {
-
-    var mainArticleTitle = pageTitle || process.argv[2];
-    var lang = lang || process.argv[3] || 'en';
-
-    //Variables to store the articles objects of the request
-    var mainArticleObj;
-
-    var childArticlesObjs = [];
-
-    //Object array to store all the articles references
-    var articlesObjs;
 
 
-    async.waterfall([
-        //Get the requested article links
-        function(callback) {
-            console.log("Getting main article abstract links...");
-
-            getArticleAbstractLinks(mainArticleTitle, lang, function(error, result) {
-                console.log("\n Abstract Links Data");
-                //console.log(result);
-
-                mainArticleObj = {
-                    title: result.title,
-                    abstractLinks: result.links
-                }
-
-                callback(error);
-            });
-        },
-
-        //Get the types of each abstract link
-        function(callback) {
-            console.log("Populating articles types...");
-
-            dbpediaApi.getArticlesTypes(mainArticleObj.abstractLinks, lang, function(error, artTypes) {
-                if(error) return callback(error);
-
-                //Iterate thru the results
-                for (var childArt in artTypes) {
-                    var types = artTypes[childArt];
-
-                    //Get only valid articles (articles whose are not in the "not valid type" list)
-                    if(!checkArrayIntersection(types, excludedTypes))
-                        childArticlesObjs.push({ title: childArt });
-                    else
-                        console.log("Not included by filtering: " + childArt);
-                }
-
-                //Populate articles objs array
-                articlesObjs = [mainArticleObj].concat(childArticlesObjs);
-
-                console.log(articlesObjs);
-
-                callback();
-            });
-        },
-
-        //Populate articles with their redirect urls
-        function(callback) {
-            console.log("Populating articles redirect urls...");
-
-            //Get every article title
-            //var articlesTitles = [mainArticleTitle].concat(mainArticleObj.abstractLinks);
-            var articlesTitles = [];
-
-            articlesObjs.forEach(function(artObj) {
-                articlesTitles.push(artObj.title);
-            }, this);
 
 
-            /*var decodedTitles = [];
-            articlesTitles.forEach(function(artTitle) {
-                decodedTitles.push(decodeURIComponent(artTitle));
-            }, this);
 
-            console.log(decodedTitles);*/
-            
-            dbpediaApi.getArticlesRedirects(articlesTitles, lang, function(error, artRedirects) {
-                if(error) return callback(error);
-                //console.log(artRedirects);
-                //Iterate thru all the articles objects
-                articlesObjs.forEach(function(articleObj) {
-                    //If there is a redirects data for this article, populate it
-                    if(artRedirects[articleObj.title])
-                        articleObj.redirectUrls = artRedirects[articleObj.title];
-                    else {
-                        console.log("NO REDIRECT DATA FOR")
-                        console.log(articleObj);
-                    }
 
-                }, this);
+//Once the queue is empty, fire callback
+asyncQueue.drain = function() { callback(); }
 
-                //console.log(articlesObjs);
+//asyncQueue.push(articlesObjs);
+asyncQueue.push(childArticlesObjs);   
 
-                callback();
+var asyncQueue = async.queue(function())
 
-            });
-        },
 
-        //Populate articles abstract links
-        function(callback) {
-            //Get the links on each of the pages
-            var asyncQueue = async.queue(function(articleObj, taskCallback) {
-                getArticleAbstractLinks(articleObj.redirectUrls[0], lang, function(err, result) {
-                    if(err) {
-                        console.log(err);
-                        console.log(articleObj.redirectUrls[0]);
-                        return;
-                    }
+async.waterfall([
+    //Get the requested article links
+    function(callback) {
+        console.log("Getting main article abstract links...");
 
-                    articleObj.abstractLinks = result.links;
-                    taskCallback();
-                });
-            }, 20);
+        getArticleAbstractLinks(mainArticleTitle, lang, function(error, links) {
+            console.log("\n Abstract Links");
+            console.log(links);
+            mainArticleObj.abstractLinks = links;
+            callback(error, links);
+        });
+    },
 
-            //Once the queue is empty, fire callback
-            asyncQueue.drain = function() { 
-                //console.log(childArticlesObjs)
-                callback(); 
+    //Get the types of each abstract link
+    function(links, callback) {
+        console.log("Populating articles types...");
+
+        dbpediaApi.getArticlesTypes(links, lang, function(error, artTypes) {
+            if(error) return callback(error);
+
+            //Iterate thru the results
+            for (var childArt in artTypes) {
+                var types = artTypes[childArt];
+
+                //Get only valid articles (articles whose are not in the "not valid type" list)
+                if(!checkArrayIntersection(types, excludedTypes))
+                    childArticlesObjs.push({ title: childArt });
+                else
+                    console.log("Not included by filtering: " + childArt);
             }
 
-            asyncQueue.push(childArticlesObjs);  
-        },
+            //Populate articles objs array
+            articlesObjs = [mainArticleObj].concat(childArticlesObjs);
 
-        //Populate articles links
-        function(callback) {
-            return callback();
-            console.log("Populate main article links...");
-                
-            wikipediaApi.getPageWikiLinks(mainArticleObj.redirectUrls[0], lang, function(err, result) {
+            callback();
+        });
+    },
+
+    //Populate articles with their redirect urls
+    function(callback) {
+        console.log("Populating articles redirect urls...");
+
+        //Get every article title
+        var articlesTitles = [mainArticleTitle].concat(mainArticleObj.abstractLinks);
+        dbpediaApi.getArticlesRedirects(articlesTitles, lang, function(error, artRedirects) {
+            if(error) return callback(error);
+
+            //Iterate thru all the articles objects
+            articlesObjs.forEach(function(articleObj) {
+                //If there is a redirects data for this article, populate it
+                if(artRedirects[articleObj.title])
+                    articleObj.redirectUrls = artRedirects[articleObj.title];
+                else {
+                    console.log("NO REDIRECT DATA FOR")
+                    console.log(articleObj);
+                }
+
+            }, this);
+
+            callback();
+
+        });
+    },
+
+    //Populate child articles abstract links
+    function(callback) {
+        console.log("Populating child articles abstractlinks...");
+
+        //Get the links on each of the pages
+        var asyncQueue = async.queue(function(articleObj, taskCallback) {
+            
+            getArticleAbstractLinks(articleObj.redirectUrls[0], lang, function(err, links) {
+
+                if(err) {
+                    console.log(err);
+                    console.log(articleObj.redirectUrls[0]);
+                    return;
+                }
+
+                articleObj.abstractLinks = links;
+                taskCallback();
+            });
+            
+            
+            /*wikipediaApi.getPageWikiLinks(articleObj.redirectUrls[0], lang, function(err, result) {
                 if(err) {
                     console.log(err);
                     console.log(articleObj.redirectUrls[0]);
                 }
                 
-                mainArticleObj.links = result.links;
-                //console.log(mainArticleObj);
-                callback()
-            });
+                articleObj.links = result.links;
+                taskCallback();
+            });*/
+        }, 20);
 
+        //Once the queue is empty, fire callback
+        asyncQueue.drain = function() { callback(); }
+
+        //asyncQueue.push(articlesObjs);
+        asyncQueue.push(childArticlesObjs);   
+    },
+
+    //Populate articles backlinks
+    function(callback) {
+        return callback();
+
+        console.log("Populating articles backlinks...");
+
+        //Get the links on each of the pages
+        var asyncQueue = async.queue(function(articleObj, taskCallback) {
+            //console.log("Getting backlink of " + articleObj.title);
+            wikipediaApi.getPageBackLinks(encodeURIComponent(articleObj.title), lang).then(function(links) {
+                articleObj.backlinks = links;
+                taskCallback();
+            }, function(err) {
+                console.log(err);
+                //taskCallback();
+            });
+        }, 20);
+
+        //Once the queue is empty, fire callback
+        asyncQueue.drain = function() { callback(); }
+
+        asyncQueue.push(articlesObjs); 
+    },
+
+    //Populate cross data with child abstractlinks and the main article
+    function(callback) {
+
+        console.log("Populating cross abstract link data...");    
+
+        childArticlesObjs.forEach(function(childArtObj) {
+            childArtObj.mainLinkCitations = countArrayIntersection(childArtObj.abstractLinks, mainArticleObj.redirectUrls);
+            childArtObj.citedByMainLink = countArrayIntersection(mainArticleObj.abstractLinks, childArtObj.redirectUrls);      
+        }, this);
+
+        callback();
+    },
+
+    //Check heuristically the data and decide which node are a pre-requisite to the main article
+    function(callback) {
+        console.log("Checking data heuristically...")
+
+        var finalChildArticles = [];
+
+        childArticlesObjs.forEach(function(childArtObj) {
+
+            finalChildArticles.push(childArtObj.title);
             return;
 
-            console.log("Populating articles links...");
-
-            //Get the links on each of the pages
-            var asyncQueue = async.queue(function(articleObj, taskCallback) {
-                wikipediaApi.getPageWikiLinks(articleObj.redirectUrls[0], lang, function(err, result) {
-                    if(err) {
-                        console.log(err);
-                        console.log(articleObj.redirectUrls[0]);
-                    }
-                    
-                    articleObj.links = result.links;
-                    taskCallback();
-                });
-            }, 20);
-
-            //Once the queue is empty, fire callback
-            asyncQueue.drain = function() { callback(); }
-
-            asyncQueue.push(articlesObjs);  
-        },
-
-        //Populate articles backlinks
-        function(callback) {
-            return callback();
-
-            console.log("Populating articles backlinks...");
-
-            //Get the links on each of the pages
-            var asyncQueue = async.queue(function(articleObj, taskCallback) {
-                //console.log("Getting backlink of " + articleObj.title);
-                wikipediaApi.getPageBackLinks(encodeURIComponent(articleObj.title), lang).then(function(links) {
-                    articleObj.backlinks = links;
-                    taskCallback();
-                }, function(err) {
-                    console.log(err);
-                    //taskCallback();
-                });
-            }, 20);
-
-            //Once the queue is empty, fire callback
-            asyncQueue.drain = function() { callback(); }
-
-            asyncQueue.push(articlesObjs); 
-        },
-
-        //Populate cross data with child links and the main article
-        function(callback) {
-            //console.log(articlesObjs);
-            console.log("Populating cross link data...");    
-
-            childArticlesObjs.forEach(function(childArtObj) {
-                childArtObj.mainLinkCitations = countArrayIntersection(childArtObj.abstractLinks, mainArticleObj.redirectUrls);
-                childArtObj.citedByMainLink = countArrayIntersection(mainArticleObj.abstractLinks, childArtObj.redirectUrls);      
-            }, this);
-
-            //console.log(childArticlesObjs);
-
-            callback();
-        },
-
-        //Check heuristically the data and decide which node are a pre-requisite to the main article
-        function(callback) {
-            console.log("Checking data heuristically...")
-
-            var finalChildArticles = [];
-
-            childArticlesObjs.forEach(function(childArtObj) {
-
+            //Save everything to a file
+            /*var fileBuffer = "";
+            articlesObjs.forEach(function(article) {
                 
-                //Save everything to a file
-                /*var fileBuffer = "";
-                articlesObjs.forEach(function(article) {
-                    
-                }, this);*/
+            }, this);*/
 
-                
-                //console.log(childArtObj.title);
+            
+            //console.log(childArtObj.title);
 
-                //If the child art does not cite the main article, just add it and return
-                if(childArtObj.mainLinkCitations == 0) {
-                    finalChildArticles.push(childArtObj.title);
-                    return;
-                }
+            //If the child art does not cite the main article, just add it and return
+            if(childArtObj.mainLinkCitations == 0) {
+                finalChildArticles.push(childArtObj.title);
+                return;
+            }
 
-                //If not, compare the ratios 
+            //If not, compare the ratios 
 
-                //Check citation ratios
-                var mainLinkCitationRatio = childArtObj.mainLinkCitations / childArtObj.abstractLinks.length;
-                var citedByMainLinkRatio = childArtObj.citedByMainLink / mainArticleObj.abstractLinks.length;
+            //Check citation ratios
+            var mainLinkCitationRatio = childArtObj.mainLinkCitations / childArtObj.links.length;
+            var citedByMainLinkRatio = childArtObj.citedByMainLink / mainArticleObj.links.length;
 
-                if(mainLinkCitationRatio <= citedByMainLinkRatio)
-                    finalChildArticles.push(childArtObj.title + " MainLinkCitation: " + mainLinkCitationRatio + 
-                        " CitedbyMainLink: " + citedByMainLinkRatio);
-                else
-                    console.log("Not included for loop with main article: " + childArtObj.title);
+            //if(mainLinkCitationRatio < citedByMainLinkRatio)
+                finalChildArticles.push(childArtObj.title + " MainLinkCitation: " + mainLinkCitationRatio + 
+                    " CitedbyMainLink: " + citedByMainLinkRatio);
+            //else
+                //console.log("Not included for loop with main article: " + childArtObj.title);
 
-                return;    
+            return;    
 
 
-                var notTrusted = false;
-                //If the main article cites the child art only once and 
-                //the child link does no cite the main links
-                //Determine that it has nothing to do with the main link
-                //This constraint must take in consideration number of links on the page
-                if(childArtObj.citedByMainLink <= 1 && childArtObj.mainLinkCitations <= 0)
-                    notTrusted = true;
+            var notTrusted = false;
+            //If the main article cites the child art only once and 
+            //the child link does no cite the main links
+            //Determine that it has nothing to do with the main link
+            //This constraint must take in consideration number of links on the page
+            if(childArtObj.citedByMainLink <= 1 && childArtObj.mainLinkCitations <= 0)
+                notTrusted = true;
 
-                //Check citation ratios
-                var mainLinkCitationRatio = childArtObj.mainLinkCitations / childArtObj.links.length;
-                var citedByMainLinkRatio = childArtObj.citedByMainLink / mainArticleObj.links.length;
+            //Check citation ratios
+            var mainLinkCitationRatio = childArtObj.mainLinkCitations / childArtObj.links.length;
+            var citedByMainLinkRatio = childArtObj.citedByMainLink / mainArticleObj.links.length;
 
-                //If the amount of time the child link cites the main link is greater than the inverse
-                //set child link as not trusted
+            //If the amount of time the child link cites the main link is greater than the inverse
+            //set child link as not trusted
 
-                if(mainLinkCitationRatio > citedByMainLinkRatio)
-                    notTrusted = true;
+            if(mainLinkCitationRatio > citedByMainLinkRatio)
+                notTrusted = true;
 
-                //if(!notTrusted)
-                    finalChildArticles.push(childArtObj.title + (notTrusted ? " (Not Trusted)" : ""));
+            //if(!notTrusted)
+                finalChildArticles.push(childArtObj.title + (notTrusted ? " (Not Trusted)" : ""));
 
-                var ratiosPercentage = (citedByMainLinkRatio - mainLinkCitationRatio) / citedByMainLinkRatio;
+            var ratiosPercentage = (citedByMainLinkRatio - mainLinkCitationRatio) / citedByMainLinkRatio;
 
-                //console.log(childArtObj.title + ": " + ratiosPercentage);
+            //console.log(childArtObj.title + ": " + ratiosPercentage);
 
-            }, this);
+        }, this);
 
-            callback(null, finalChildArticles);
+        callback(null, finalChildArticles);
 
-    /*
-            //Print results
-            //Check back links qty of each one
-            console.log(page1Data.title + " has " + page1Data.backlinks.length + " backlinks.");
-            console.log(page2Data.title + " has " + page2Data.backlinks.length + " backlinks.");
+/*
+        //Print results
+        //Check back links qty of each one
+        console.log(page1Data.title + " has " + page1Data.backlinks.length + " backlinks.");
+        console.log(page2Data.title + " has " + page2Data.backlinks.length + " backlinks.");
 
-            console.log(page1Data.title + " cites " + page2Data.title + " " + numberOfLinksOfPage2OnPage1 + " times." + 
-                " Ratio: " + numberOfLinksOfPage2OnPage1 / page1Data.links.length);
+        console.log(page1Data.title + " cites " + page2Data.title + " " + numberOfLinksOfPage2OnPage1 + " times." + 
+            " Ratio: " + numberOfLinksOfPage2OnPage1 / page1Data.links.length);
 
-            console.log(page2Data.title + " cites " + page1Data.title + " " + numberOfLinksOfPage1OnPage2 + " times." + 
-                " Ratio: " + numberOfLinksOfPage1OnPage2 / page2Data.links.length);*/
+        console.log(page2Data.title + " cites " + page1Data.title + " " + numberOfLinksOfPage1OnPage2 + " times." + 
+            " Ratio: " + numberOfLinksOfPage1OnPage2 / page2Data.links.length);*/
 
-        } 
+    } 
 
-    ], function(error, result) {
-        //console.log(articlesObjs);
-        console.log("\n Final Links");
-        console.log(result);
-        console.log("DONE");
-        finalCallback(result);
-    });
-}
+], function(error, result) {
+    //console.log(articlesObjs);
+    console.log("\n Final Links");
+    console.log(result);
+    console.log("DONE");
+});
 
 
 
 
 function getArticleAbstractLinks(articleTitle, lang, callback) {
 
-    //Url must already been encoded
-
-    wikipediaApi.getPageAbstractLinks(articleTitle, lang, function(err, result) {
-    //wikipediaApi.getPageAbstractLinks(encodeURIComponent(articleTitle), lang, function(err, result) {
-        return callback(err, result);
-
+    wikipediaApi.getPageAbstractLinks(encodeURIComponent(articleTitle), lang, function(err, result) {
         if(err) 
             return callback(err);
         
         var pageChilds = [];
 
         result.links.forEach(function(link) {
-            pageChilds.push(link)
-            //pageChilds.push(decodeURIComponent(link.replaceAll("_", " ")));        
+            pageChilds.push(decodeURIComponent(link.replaceAll("_", " ")));        
         }, this);
 
         callback(null, pageChilds);

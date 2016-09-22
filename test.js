@@ -2,13 +2,18 @@
 var wikipediaApi = require("./wikipediaApi.js");
 var fs = require("fs");
 
+wikipediaApi.getPageAbstractLinks(process.argv[2], "en", function(err, result){
+    console.log(arguments);
+});
 
-wikipediaApi.getPageBackLinks(process.argv[2], "en").then(function(result){
+
+
+/*wikipediaApi.getPageBackLinks(process.argv[2], "en").then(function(result){
     console.log(result);
     console.log(result.length)
 }, function(err) {
     console.log(err);
-});
+});*/
 
 
 /*var async = require("async");

@@ -26,8 +26,10 @@ function getArticlesRedirects(articles, lang, callback) {
     var queryString = "PREFIX dbo: <http://dbpedia.org/ontology/>\nPREFIX dbp: <http://dbpedia.org/property/>\n\nSELECT DISTINCT ?article ?label ?redirects WHERE {\n";
     
     var articlesQueries = [];
-    for(var i = 0; i < articles.length; i++)
+    for(var i = 0; i < articles.length; i++) {
+        var articleDecoded = decodeURIComponent(articles[i].replace(new RegExp("_","g")," "));
         articlesQueries.push('    { ?article rdfs:label "' + articles[i] + '"@' + lang + ' . }\n');
+    }
 
     //Join all the queries together with UNION keyword
     queryString += '\n' + articlesQueries.join("    UNION \n");    
@@ -96,8 +98,10 @@ function getArticlesTypes(articles, lang, callback) {
     var queryString = "PREFIX dbo: <http://dbpedia.org/ontology/>\nPREFIX dbp: <http://dbpedia.org/property/>\n\nSELECT DISTINCT ?label ?type WHERE {\n";
     
     var articlesQueries = [];
-    for(var i = 0; i < articles.length; i++)
-        articlesQueries.push('    { ?article rdfs:label "' + articles[i] + '"@' + lang + ' . }\n');
+    for(var i = 0; i < articles.length; i++) {
+        var articleDecoded = decodeURIComponent(articles[i].replace(new RegExp("_","g")," "));
+        articlesQueries.push('    { ?article rdfs:label "' + articleDecoded + '"@' + lang + ' . }\n');
+    }
 
     //Join all the queries together with UNION keyword
     queryString += '\n' + articlesQueries.join("    UNION \n");    
