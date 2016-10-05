@@ -43,7 +43,7 @@ app.get("/:article", function(req, res) {
     var article = RegExp.escape(req.params.article);
 
 
-    var neoQuery = "MATCH (n:Article)-[:ConnectsTo]->(t:Article) WHERE n.title=~'(?i)^" + article + "$' RETURN n,t";
+    var neoQuery = "MATCH (n:Article)-[:ConnectsTo]->(t:Article)<-[r:ConnectsTo]-(:Article) WHERE n.title=~'(?i)^" + article + "$' RETURN n,t, count(r)";
 
     db.cypherQuery(neoQuery, function(err, result) {
         //Return error if any
@@ -53,6 +53,8 @@ app.get("/:article", function(req, res) {
         //If no results, return msg
         if(result.data.length <= 0)
             return res.send("NO RESULTS RETURNED.");
+
+        //console.log(result.data);
 
         //Get article title and put on response page
         var articleTitle = result.data[0][0].title;
@@ -80,6 +82,11 @@ app.get("/:article", function(req, res) {
             '</select> '
         ].join("\n");
 
+        //Sort result data
+        result.data.sort(function(a,b) {
+            return b[2] - a[2];
+        });
+
         //Construct page link structure
         for (var i = 0; i < result.data.length; i++) {
             var data = result.data[i];
@@ -87,7 +94,7 @@ app.get("/:article", function(req, res) {
             selectHTML +=  data[0].title + 
                 options.replace("<!-- TARGET-TITLE -->", data[1].title) + 
                 "<a href='/" + data[1].title + "' target='_blank'>" + data[1].title + "</a> " + 
-                "<a href='https://en.wikipedia.org/wiki/" + data[1].title + "' target='_blank'>Wikipedia</a><br><br>";
+                "<a href='https://en.wikipedia.org/wiki/" + data[1].title + "' target='_blank'>Wikipedia</a> - " + data[2] + "<br><br>";
         }
         
         indexPage = indexPage.replace("<!-- CONTENT-AREA -->", selectHTML);
