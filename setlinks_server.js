@@ -19,9 +19,67 @@ RegExp.escape = function(text) {
     return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\\\$&");
 };
 
-//app.use(express.static('public'));
+app.use(express.static('public'));
 app.use(bodyParser.json());//To support JSON-encoded bodies
 app.use(bodyParser.urlencoded({ extended: true })); //To support URL-encoded bodies
+
+
+
+//REST Api
+app.get("/get/:article", function(req, res) {
+    
+    //Ensure regex chars are escaped
+    var article = RegExp.escape(req.params.article);
+    
+    var neoQuery = "MATCH (n:Article)-[:ConnectsTo]->(t:Article)<-[r:ConnectsTo]-(:Article) WHERE n.title=~'(?i)^" + article + "$' RETURN n,t, count(r)";
+    
+    db.cypherQuery(neoQuery, function(err, result) {
+        //Return error if any
+        if(err)
+            return res.json(err);
+
+        //If no results, return msg
+        if(result.data.length <= 0)
+            return res.json(JSON.parse("{error: 'NO RESULTS RETURNED.'}"));
+
+        //Get article title and put on response page
+        var articleTitle = result.data[0][0].title;
+
+        var returnObj = {
+            article: articleTitle,
+            links: []
+        }
+
+        //Sort result data
+        result.data.sort(function(a,b) {
+            return b[2] - a[2];
+        });
+
+        //Construct page link structure
+        for (var i = 0; i < result.data.length; i++) {
+            var data = result.data[i];
+            returnObj.links.push({
+                title: data[1].title,
+                linksToHere: data[2]
+            });
+            
+//            selectHTML +=  data[0].title + 
+//                options.replace("<!-- TARGET-TITLE -->", data[1].title) + 
+//                "<a href='/" + data[1].title + "' target='_blank'>" + data[1].title + "</a> " + 
+//                "<a href='https://en.wikipedia.org/wiki/" + data[1].title + "' target='_blank'>Wikipedia</a> - " + data[2] + "<br><br>";
+        }
+        
+//        indexPage = indexPage.replace("<!-- CONTENT-AREA -->", selectHTML);
+//        
+//        return res.send(indexPage);
+        
+        return res.json(returnObj);
+    });
+});
+
+
+
+
 
 //Append method to response obj
 app.response.jsonError = function(error) {
