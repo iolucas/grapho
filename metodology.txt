@@ -1,0 +1,5 @@
+- If something belongs to a company, it will be a member of the company group;
+- The less specific the article is, more up in the groups it is, the more specific, it is lower.
+- Adjectives or qualities will be most of the time inside groups 
+- If something 'uses' an group, the group will be inside
+- If an group is inpired in another group, the inspiration must be inside.

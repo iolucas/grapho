@@ -3,6 +3,8 @@ var Promise = require('promise');
 var cheerio = require('cheerio');
 var async = require('async');
 
+var request = require("request");
+
 //Utils
 var print = console.log;
 
@@ -35,7 +37,9 @@ module.exports = {
 
     getPageBackLinks: getPageBackLinks,
 
-    getPageWikiLinks: getPageWikiLinks
+    getPageWikiLinks: getPageWikiLinks,
+    
+//    getWikiPageData: getWikiPageData
 }
 
 //Get all the page wiki links base on the page parse
@@ -83,7 +87,7 @@ function getPageWikiLinks(page, lang, callback) {
 
         var links = []
 
-        //Get all the <a> tags inside the <p> tags,(where the abstract is placed) and put them into the links array
+        //Get all the <a> tags 
         $('a').each(function(i, elem) {
                 
             var link = $(this).attr('href');
@@ -108,8 +112,13 @@ function getPageWikiLinks(page, lang, callback) {
                     linkName = linkName.substring(0, hashIndex);
 
                 //If the link is not in the links array, push it 
-                //if(links.indexOf(linkName) == -1)
-                links.push(linkName);
+                if(links.indexOf(linkName) == -1)
+                    links.push(linkName);
+//                links.push({
+//                    link: linkName,
+//                    text: $(this).text()
+//                });
+                
             }                
         });
 
@@ -117,7 +126,8 @@ function getPageWikiLinks(page, lang, callback) {
         callback(null, {
             title: pageTitle,
             pageId: pageId,
-            links: links    
+            links: links,
+            html: htmlData
         });  
 
     });
@@ -662,6 +672,86 @@ function getNormalizeWikiLink(page, lang) {
 }
 
 
+//function getWikiPageData(page, lang, callback) {
+//    
+//    if(!page || !lang) {
+//        callback("ERROR: Insuficient arguments.");
+//        return;
+//    }
+//
+//    var reqUrl = "https://" + lang + wikipediaApiUrl + "?action=parse&redirects&prop=text&format=json&page=" + page;
+//    
+//
+//    request(apiUrl + page, function (error, response, body) {
+//        
+//        //If some error occur during request, throw error
+//        if(error) { 
+//            callback(error);
+//            return;
+//        }
+//        
+//        //If status code is different from 200, throw error
+//        if(response.statusCode != 200) {
+//            callback("ERROR. STATUS CODE: " + response.statusCode);
+//            return;
+//        }
+//        
+//        //Treat data
+//        var dataObj = JSON.parse(body);
+//        
+//        //If the payload got an error object, throw error
+//        if(dataObj.hasOwnProperty("error")) {
+//            callback(body);
+//            return;
+//        }
+//        
+//        //Get wikilinks
+//        var links = [];
+//        
+//        //Load it on cheerio (jQuery like module)
+//        $ = cheerio.load(dataObj['parse']['text']['*']);
+//        
+//        //Get all the <a> tags 
+//        $('a').each(function(i, elem) {
+//                
+//            var link = $(this).attr('href');
+//
+//            //var notAllowedChars
+//
+//            //Check the link exists and is a wiki link
+//            //Get only wikipedia links
+//            //Remove pages that contains a colon (":"). Their offen are special pages. Not sure if there is articles with colon
+//            if(link 
+//                && link.indexOf("/wiki/") == 0 
+//                && link.indexOf(":") == -1
+//            ) { 
+//                //We MUST NOT use last index of / to get the path cause some titles like TCP/IP, have bar in the title
+//                //var lastPathIndex = link.lastIndexOf("/") + 1;
+//                //We should use the '/wiki/' string length
+//                var linkName = link.substring(6);
+//
+//                //Remove hashtag from url if any
+//                var hashIndex = linkName.indexOf("#");
+//                if(hashIndex != -1)
+//                    linkName = linkName.substring(0, hashIndex);
+//
+//                //If the link is not in the links array, push it 
+//                //if(links.indexOf(linkName) == -1)
+//                links.push(linkName);
+//            }                
+//        });
+//        
+//        callback({
+//            title: dataObj['parse']['title'],
+//            pageid: dataObj['parse']['pageid'],
+//            links: links,
+//            html: dataObj['parse']['text']['*']            
+//        })
+//    });   
+//}
+
+
+
 function simpleHttpsGet(url, callback) {
 
     var recData = '';
@@ -713,3 +803,16 @@ function httpsGet(url) {
 		});
 	});
 }
+
+
+//Test routines
+if(process.argv[2] == 'testwikiapi') {
+    getPageWikiLinks("mqtt", 'en', function(error, pageInfo) {
+        if(error)
+            console.log(error);
+        else
+            console.log(pageInfo);
+        
+    });
+}
+

@@ -100,7 +100,7 @@
                     <div class="articleIcon">Linear Algebra</div>
 -->
                 </div>
-                <div id="targetArticleTitle">Mathematics</div>
+                <div id="targetArticleTitle"></div>
                 <div id="innerRelationArea">
 <!--
                     <div class="articleIcon">Linear Algebra</div>
@@ -129,8 +129,13 @@
         </div>
 -->
         
-        <script src="assets/js/jquery-2.1.4.min.js"></script>
-        <script src="assets/js/d3.v3.min.js"></script>
-        <script src="choose.js"></script>
+        <script src="../assets/js/jquery-2.1.4.min.js"></script>
+        <script src="../assets/js/d3.v3.min.js"></script>
+        <script src="../choose.js"></script>
+        <script>
+            var articleData = ARTICLE_DATA_OBJECT;
+            
+            startApp(articleData);
+        </script>
 	</body>
 </html>

@@ -26,10 +26,13 @@ app.use(bodyParser.urlencoded({ extended: true })); //To support URL-encoded bod
 
 
 //REST Api
-app.get("/get/:article", function(req, res) {
+app.get("/choose/:article", function(req, res) {
     
     //Ensure regex chars are escaped
     var article = RegExp.escape(req.params.article);
+    
+    //Load html page
+    var indexPage = fs.readFileSync("public/choose.html", "utf8");
     
     var neoQuery = "MATCH (n:Article)-[:ConnectsTo]->(t:Article)<-[r:ConnectsTo]-(:Article) WHERE n.title=~'(?i)^" + article + "$' RETURN n,t, count(r)";
     
@@ -40,7 +43,7 @@ app.get("/get/:article", function(req, res) {
 
         //If no results, return msg
         if(result.data.length <= 0)
-            return res.json(JSON.parse("{error: 'NO RESULTS RETURNED.'}"));
+            return res.json("{error: 'NO RESULTS RETURNED.'}");
 
         //Get article title and put on response page
         var articleTitle = result.data[0][0].title;
@@ -63,17 +66,14 @@ app.get("/get/:article", function(req, res) {
                 linksToHere: data[2]
             });
             
-//            selectHTML +=  data[0].title + 
-//                options.replace("<!-- TARGET-TITLE -->", data[1].title) + 
-//                "<a href='/" + data[1].title + "' target='_blank'>" + data[1].title + "</a> " + 
-//                "<a href='https://en.wikipedia.org/wiki/" + data[1].title + "' target='_blank'>Wikipedia</a> - " + data[2] + "<br><br>";
         }
+            
         
-//        indexPage = indexPage.replace("<!-- CONTENT-AREA -->", selectHTML);
-//        
-//        return res.send(indexPage);
+        indexPage = indexPage.replace("ARTICLE_DATA_OBJECT", JSON.stringify(returnObj));
         
-        return res.json(returnObj);
+        return res.send(indexPage);
+        
+//        return res.json(returnObj);
     });
 });
 

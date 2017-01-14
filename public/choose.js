@@ -10,24 +10,48 @@ Array.prototype.popObject = function(obj) {
     return obj;
 }
 
-
-
 var notRelatedObjs = [
-    {title: "Linear Algebra1"},
-    {title: "Linear Algebra2"}
+//    {title: "Linear Algebra1"},
+//    {title: "Linear Algebra2"}
 ]
 
 var innerRelatedObjs = [
-    {title: "Linear Algebra3"},
-    {title: "Linear Algebra4"}
+//    {title: "Linear Algebra3"},
+//    {title: "Linear Algebra4"}
 ]
 var outerRelatedObjs = [    
-    {title: "Linear Algebra5"},
-    {title: "Linear Algebra6"}
+//    {title: "Linear Algebra5"},
+//    {title: "Linear Algebra6"}
 ]
 
+function startApp(data) {
+    notRelatedObjs = data.links;
+    
+    //Update title
+    d3.select("#targetArticleTitle")
+        .append("a")
+        .attr("target", "_blank")
+        .attr("href", "https://en.wikipedia.org/wiki/" + data.article)        
+        .text(data.article);
+    
+    updatePositions();
+}
 
-updatePositions();
+//Get desired data
+//d3.json("http://localhost:7000/get/mqtt", function(error, data) {
+//    console.log(window.location)
+//    if(error)
+//        return console.log(error);
+//    
+//    if(data.hasOwnProperty("error"))
+//        return console.log(data);
+//    
+//
+//    
+//});
+
+
+
 
 //console.log(notRelatedObjs);
 //notRelatedObjs.popObject(notRelatedObjs[1]);
@@ -133,6 +157,6 @@ function updateArea(areaId, areaArray) {
         .append("div")
         .classed("articleIcon", true)
         .text(function(d){
-            return d.title;
+            return d.title + " - " + d.linksToHere;
         });
 }
