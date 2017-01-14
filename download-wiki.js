@@ -77,8 +77,8 @@ print("");
 //var lang = process.argv[3] || "en";
 
 //Models functions 
-var Article, createNewArticle;
-var Wikiurl, createNewWikiurl;
+var Article;
+var Wikiurl;
 
 //Init DB
 
@@ -95,9 +95,6 @@ graphodb.init(function(error) {
     //Get models
     Article = graphodb.models.Article;
     Wikiurl = graphodb.models.Wikiurl; 
-
-    createNewArticle = createModelAsyncFunction(Article, 'create');
-    createNewWikiurl = createModelAsyncFunction(Wikiurl, 'create');
 
     //Crawl all links that has no appended article
     if(process.argv[2] == "--all-empty") {
@@ -303,16 +300,29 @@ function addArticleDataToDb(pageInfo, lang, callback) {
     //Ensure to escape quotes from the title and url before query
     pageInfo.title = pageInfo.title.replace(/['\\]/g, "\\$&");
     pageInfo.url = pageInfo.url.replace(/['\\]/g, "\\$&");
+    pageInfo.html = pageInfo.html.replace(/['\\]/g, "\\$&");
 
     //Construct query
+    
+    //We try to get the current article by its id, if it does not exists, we create it
+    //We try to get the wikiurl that led us to the article by its url, if it doest no exists, we create it
+    //Finally we create a relation between the url and the article if it does not exists (create unique)
+    
     var neoQuery = 
         "MERGE (article:Article { wikiPageId:" + pageInfo.pageId + "})" + 
-        " ON CREATE SET article.title = '" + pageInfo.title + "', article.language = '" + lang + "'" + 
+        " ON CREATE SET article.name = '" + pageInfo.title + 
+        "', article.language = '" + lang + 
+        "', article.html = '" + pageInfo.html + "'" + 
         " MERGE (articleUrl:Wikiurl { url_lang:'" + pageInfo.url + "_" + lang + "' })" +
         " ON CREATE SET articleUrl.url = '" + pageInfo.url + "', articleUrl.lang = '" + lang + "'" +
         " SET articleUrl.articleId = '" + pageInfo.pageId + "'" +
         " CREATE UNIQUE (articleUrl)-[:RedirectsTo]->(article)";
         
+    
+    //We iterate thry the article links
+    //We try to get the wikiurl by the link url, if we do not suceed, we create it
+    //then we create a link between the wikiurl and the article if it does not exists (create unique)
+    
     for (var i = 0; i < pageInfo.links.length; i++) {
         //Ensure to escape quotes from the link before query
         var link = pageInfo.links[i].replace(/['\\]/g, "\\$&");
@@ -324,6 +334,7 @@ function addArticleDataToDb(pageInfo, lang, callback) {
     }
 
     //Add in/out ConnectsTo relation to this article 
+    //TODO: check how much does this part of code slow down the whole thing, if it is much, we must try to improve it
     neoQuery += 
         " WITH article MATCH (article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(targetArticle:Article)" + 
         " CREATE UNIQUE (article)-[:ConnectsTo]->(targetArticle)" +
@@ -342,156 +353,6 @@ function addArticleDataToDb(pageInfo, lang, callback) {
 }
 
 
-//Crawl an unique page, register it if not regitered and register its abstract links
-function crawlUnique(page, lang, crawlNumber, callback) {
-
-    print("Getting links for page: " + page);
-
-    wikipediaApi.getPageWikiLinks(page, lang, function(error, pageInfo) {
-
-        //If error, exit with it
-        if(error) {
-            callback(getErrorString(error, 
-                "Crawl Error with page: " + page + ", crawl number " + crawlNumber + ": "));
-            return;
-        }
-
-        //print(pageInfo.links);
-
-        //print("Data gotten. Filling database...")
-
-        //Try to get a instance of Article with page info or create if not found
-        Article
-            .findOrCreate({
-                where: { wikiPageId: pageInfo.pageId},
-                defaults: { title: pageInfo.title, language: lang } //Data to use for the left fields
-            })
-            .spread(function(articleRef, artCreated) {
-                
-                //Try to get instance of page wikiurl or create it if not found
-                Wikiurl
-                    .findOrCreate({ 
-                        where: { url: page, lang: lang },
-                        defaults: { url_lang: page + "_" + lang }
-                    })
-                    .spread(function(wikiurlRef, urlCreated) {
-                        //Add the wikiurl ref to the article redirection
-                        return articleRef.addRedirectUrl(wikiurlRef);
-                    })
-                    .then(function() {
-                        //If the article is already created, return
-                        if(!artCreated) {
-                            callback(null, crawlNumber);
-                            return;
-                        }
-
-                        //Add links to article async
-                        asyncAddLinksToArticle(articleRef, pageInfo.links, lang, function(error){
-                            callback(error, crawlNumber);
-                        });
-                               
-                    })
-                    .catch(function(error) {   
-                        callback(getErrorString(error, 
-                            "Error while find creating article, adding redirect url or adding links to the article:"));
-                    });
-            })
-            .catch(function(error){
-                callback(getErrorString(error, "Error while finding or spreading article in database:"));
-            });
-            
-
-    });
-}
-
-
-//KNOW ISSUES:
-//WHEN DEALING WITH TOO MUCH DATA, CONFLICTS ON ADDING LINKS TO ARTICLES ARE FIRED
-//APARENTLY OF USE THE SAME ARTICLE SAME TIME
-//WHEN TRY TO ADD AN ALREADY PLACE LINK INTO AN ARTICLE, NOTHING HAPPENS
-function asyncAddLinksToArticle(article, links, lang, callback) {
-    
-    //Create or find all links references
-
-    /*var wikiUrlFindOrCreateFunctions = [];
-    links.forEach(function(link) {
-    
-        wikiUrlFindOrCreateFunctions.push(function(taskCallback) {
-            Wikiurl
-                .findOrCreate({ where: { //Try get or create the wikiurl ref
-                    url: link,
-                    lang: lang
-                }})
-                .spread(function(wikiurlRef, created) {
-                    taskCallback(null, wikiurlRef);
-                })
-                .catch(function(err) {
-                    taskCallback(getErrorString(err, "Error while getting wikiurl references:\r\n"));
-                });
-        });
-        
-    }, this);
-
-    async.parallel(wikiUrlFindOrCreateFunctions, function(error, wikiurls) {
-        //Fire error if any
-        if(error)
-            return callback(getErrorString(error, "Error while asyncAddLinksToArticle:\r\n"));
-
-        //Add the links references to the target article
-        article.addLinkFromHere(wikiurls).then(function() {
-            callback(); //fire the success callback
-        }).catch(function(err){
-            //Fire error if any
-            callback(getErrorString(err, "Error while adding links to the articles:\r\n"));
-        });
-
-    });
-
-    return;*/
-
-    //....Diferent method to do the same thing
-
-    //Create a queue object
-    var queue = async.queue(function(link, taskCallback) {
-        Wikiurl
-            .findOrCreate({  //Try get or create the wikiurl ref
-                where: { url: link, lang: lang },
-                defaults: { url_lang: link + "_" + lang }
-            })
-            .spread(function(wikiurlRef, created) {
-
-                //if(!created)
-                    //print("LINK " + wikiurlRef.id + " ALREADY EXISTS!")
-
-                //Add the wikiurl ref to the article links
-                return article.addLinkFromHere(wikiurlRef);
-            })
-            .then(function() {
-                taskCallback(); //Fire the task callback
-            })
-            .catch(function(err) {
-                var errorString = getErrorString(err, "Error while finding/creating wikiurl or adding wikiurl to article (" 
-                    + article.title + "):");
-                taskCallback(errorString);
-            });
-
-    }, 100);
-
-    queue.drain = function() {
-        callback(null, "AsyncAddLinksToArticle finished successfully."); //Fire the callback with success    
-    }
-
-    queue.push(links, function(err) {
-        if(err) {
-            //Write log error here because it is not passed forward
-            writeErrorLog(err);
-            print("ERROR while adding link to article:");
-            print(err);
-            return;
-        }
-    });
-}
-
 function getErrorString(errorObj, errorMsg) {
     var errorString;
     try {
@@ -504,18 +365,3 @@ function getErrorString(errorObj, errorMsg) {
 }
 
 
-function createModelAsyncFunction(model, method) {
-
-    //This will return a function that will return a asyncjs way function
-    return function() {
-        var args = arguments;
-        return function(callback) {
-            //'This'' must be the model
-            model[method].apply(model, args)
-                .then(function(result) {
-                    callback(null, result);
-                })
-                .catch(callback);
-        }
-    }
-}
