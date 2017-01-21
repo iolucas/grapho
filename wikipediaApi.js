@@ -42,6 +42,78 @@ module.exports = {
 //    getWikiPageData: getWikiPageData
 }
 
+function getPageSections(page, lang, callback) {
+
+    if(!page || !lang) {
+        callback("ERROR: Insuficient arguments.");
+        return;
+    }
+
+    var reqUrl = "https://" + lang + wikipediaApiUrl + "?action=parse&redirects&prop=text&format=json&page=" + page;
+
+    request(reqUrl, function (error, response, body) {
+       
+        //If some error occur during request, throw error
+        if(error) { 
+            callback(error);
+            return;
+        }
+       
+        //If status code is different from 200, throw error
+        if(response.statusCode != 200) {
+            callback("ERROR. STATUS CODE: " + response.statusCode);
+            return;
+        }
+
+        //Treat data
+        var dataObj = JSON.parse(body);
+       
+        //If the payload got an error object, throw error
+        if(dataObj.hasOwnProperty("error")) {
+            callback(body);
+            return;
+        }
+
+        var htmlData = dataObj['parse']['text']['*'];
+
+        //Load it on cheerio (jQuery like module)
+        $ = cheerio.load(htmlData);
+
+        $.root().children().each(function(index, object) {
+            console.log(object.name);
+        });
+
+        // for(var prop in $) {
+        //     console.log($.root());
+        // }
+
+
+        callback(null, "");
+    });
+}
+
+
+function splitIntoSections(htmlObj) {
+    //Function to split html document in sections (use h2 tags as divisors)
+
+    //Init var to store sections
+    var sectionObjs = [[]];
+
+    htmlObj.children().each(function(index, tag) {
+        //Start new section in case the tag is h2
+        if(tag.name == 'h2')
+            sectionObjs.push([]);
+
+        //If it is a valid tag (invalid tags has no 'name' property)
+        if(tag.name != None)
+            sectionObjs[sectionObjs.length - 1].push(tag)
+    });
+
+    return sectionObjs
+}
+
+
+
 //Get all the page wiki links base on the page parse
 function getPageWikiLinks(page, lang, callback) {
     //Obs.: Page must already been encoded
@@ -807,12 +879,17 @@ function httpsGet(url) {
 
 //Test routines
 if(process.argv[2] == 'testwikiapi') {
-    getPageWikiLinks("mqtt", 'en', function(error, pageInfo) {
-        if(error)
-            console.log(error);
-        else
-            console.log(pageInfo);
+    // getPageWikiLinks("mqtt", 'en', function(error, pageInfo) {
+    //     if(error)
+    //         console.log(error);
+    //     else
+    //         console.log(pageInfo);
         
+    // });
+
+    getPageSections("Tibia (computer game)", "en", function(error, body) {
+        console.log(error)
+        console.log(body);
     });
 }
 

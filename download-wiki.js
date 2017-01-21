@@ -275,7 +275,7 @@ function crawlUrlCollection(urlCollection, lang, callback) {
             taskCallback(null, url);
         });
 
-    }, 100);
+    }, 10);
 
     //Callback to be called when the wikipages queue are empty
     wikipageQueue.drain = function() {
@@ -312,8 +312,8 @@ function addArticleDataToDb(pageInfo, lang, callback) {
         "MERGE (article:Article { wikiPageId:" + pageInfo.pageId + "})" + 
         " ON CREATE SET article.name = '" + pageInfo.title + 
         "', article.language = '" + lang + 
-        "', article.html = '" + pageInfo.html + "'" + 
-        " MERGE (articleUrl:Wikiurl { url_lang:'" + pageInfo.url + "_" + lang + "' })" +
+        // "', article.html = '" + pageInfo.html +
+        "' MERGE (articleUrl:Wikiurl { url_lang:'" + pageInfo.url + "_" + lang + "' })" +
         " ON CREATE SET articleUrl.url = '" + pageInfo.url + "', articleUrl.lang = '" + lang + "'" +
         " SET articleUrl.articleId = '" + pageInfo.pageId + "'" +
         " CREATE UNIQUE (articleUrl)-[:RedirectsTo]->(article)";
@@ -323,6 +323,8 @@ function addArticleDataToDb(pageInfo, lang, callback) {
     //We try to get the wikiurl by the link url, if we do not suceed, we create it
     //then we create a link between the wikiurl and the article if it does not exists (create unique)
     
+
+    console.log(pageInfo.links.length);
     for (var i = 0; i < pageInfo.links.length; i++) {
         //Ensure to escape quotes from the link before query
         var link = pageInfo.links[i].replace(/['\\]/g, "\\$&");
@@ -335,11 +337,12 @@ function addArticleDataToDb(pageInfo, lang, callback) {
 
     //Add in/out ConnectsTo relation to this article 
     //TODO: check how much does this part of code slow down the whole thing, if it is much, we must try to improve it
-    neoQuery += 
-        " WITH article MATCH (article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(targetArticle:Article)" + 
-        " CREATE UNIQUE (article)-[:ConnectsTo]->(targetArticle)" +
-        " WITH article MATCH (targetArticle:Article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(article)" + 
-        " CREATE UNIQUE (targetArticle)-[:ConnectsTo]->(article)";
+    // neoQuery += 
+    //     " WITH article MATCH (article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(targetArticle:Article)" + 
+    //     " CREATE UNIQUE (article)-[:ConnectsTo]->(targetArticle)" +
+    //     " WITH article MATCH (targetArticle:Article)-[:LinksTo]->(:Wikiurl)-[:RedirectsTo]->(article)" + 
+    //     " CREATE UNIQUE (targetArticle)-[:ConnectsTo]->(article)";
+
 
     db.cypherQuery(neoQuery, function(error, result) {
         if(error) {
