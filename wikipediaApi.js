@@ -887,9 +887,15 @@ if(process.argv[2] == 'testwikiapi') {
         
     // });
 
-    getPageSections("Tibia (computer game)", "en", function(error, body) {
+    /*getPageSections("Tibia (computer game)", "en", function(error, body) {
         console.log(error)
         console.log(body);
-    });
+    });*/
+
+    getPageLinks("HTML", "en")
+        .then(function (res) {
+            console.log(arguments);
+        });
+
 }
 
